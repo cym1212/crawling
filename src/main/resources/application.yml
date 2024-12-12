@@ -1,0 +1,32 @@
+#spring.application.name=crawling
+spring:
+  config:
+    import:
+      - classpath:application-database.yml
+      - classpath:application-hottracks.yml
+      - classpath:application-libro.yml
+      - classpath:application-arcnbook.yml
+  servlet:
+    multipart:
+      maxFileSize: 10MB
+      maxRequestSize: 10MB
+  web:
+    resources:
+      add-mappings: false
+geoip2:
+  database:
+    path: GeoLite2-Country.mmdb
+
+springdoc:
+  swagger-ui:
+    path: /swagger
+
+logging:
+  level:
+    org.springframework.security: DEBUG
+
+server:
+  port: 8081
+
+
+

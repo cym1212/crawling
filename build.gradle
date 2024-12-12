@@ -1,0 +1,87 @@
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '3.4.0'
+	id 'io.spring.dependency-management' version '1.1.6'
+}
+
+group = 'codeRecipe'
+version = '0.0.1-SNAPSHOT'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(17)
+	}
+}
+
+configurations {
+	compileOnly {
+		extendsFrom annotationProcessor
+	}
+}
+
+
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+
+
+//	//crawling
+//	implementation group: 'org.seleniumhq.selenium', name: 'selenium-java', version: '4.27.0'
+//	implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.2'
+//	implementation group: 'io.github.bonigarcia', name: 'webdrivermanager', version: '5.9.2'
+
+	//spring jpa
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+
+	// Web Application Server
+	implementation 'org.springframework.boot:spring-boot-starter-batch'
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+	implementation 'com.fasterxml.jackson.core:jackson-databind:2.16.1'
+
+
+	// Lombok
+	testImplementation 'org.projectlombok:lombok:1.18.28'
+	compileOnly 'org.projectlombok:lombok'
+	annotationProcessor 'org.projectlombok:lombok'
+	testCompileOnly 'org.projectlombok:lombok'
+	testAnnotationProcessor 'org.projectlombok:lombok'
+
+	//postgresql
+	implementation 'org.postgresql:postgresql:42.7.2'
+
+
+	//swagger
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0'
+
+	// HTTP Client
+	implementation 'org.apache.httpcomponents:httpclient:4.5.13'
+
+	//Mysql
+	implementation group: 'com.mysql', name: 'mysql-connector-j', version: '9.1.0'
+
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}
+
+tasks.processResources {
+	doLast {
+		copy {
+			from 'venv' // 로컬 프로젝트의 venv 디렉토리
+			into "$buildDir/resources/main/venv" // 리소스 디렉토리로 복사
+		}
+	}
+}
+jar {
+	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+	from { "$buildDir/resources/main" } // JAR에 포함될 리소스 디렉토리
+}
+
+processResources {
+//	dependsOn copyPythonEnv
+}
