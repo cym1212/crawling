@@ -20,7 +20,7 @@ public class DataProcessingService {
 
     public String DataProcessing() {
 
-        LocalDate date = LocalDate.now().minusDays(2);
+        LocalDate date = LocalDate.now().minusDays(1);
 
         Long totalCount = salesRecordRepository.getTotalQuantityByDate(date);
         Long totalAmount = salesRecordRepository.getTotalSalesAmountByDate(date);

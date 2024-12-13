@@ -19,6 +19,8 @@ import org.springframework.stereotype.Component;
 
 import java.io.*;
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -49,6 +51,7 @@ public class HottracksPythonScriptExecutor {
     private final SalesRecordRepository salesRecordRepository;
     private final SalesLocationRepository salesLocationRepository;
 
+    LocalDate targetDate = ZonedDateTime.now(ZoneId.of("Asia/Seoul")).minusDays(1).toLocalDate();
 
     private String getPythonPath() {
         return "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3";
@@ -81,8 +84,8 @@ public class HottracksPythonScriptExecutor {
         }
 
 
-        String startDate = LocalDate.now().minusDays(1).toString();
-        String endDate = LocalDate.now().minusDays(1).toString();
+        String startDate = targetDate.toString();
+        String endDate = targetDate.toString();
         ProcessBuilder processBuilder = new ProcessBuilder(
                 pythonPath, tempScriptFile1.getAbsolutePath(),
                 loginUrl, targetUrl, username, password, startDate, endDate
@@ -164,7 +167,7 @@ public class HottracksPythonScriptExecutor {
                     }
 
                     SalesRecord existingRecord = salesRecordRepository.findTopBySalesLocationAndProductAndSalesDate(
-                            salesLocation, product, LocalDate.now().minusDays(1)
+                            salesLocation, product, targetDate
                     );
 
 
@@ -172,7 +175,7 @@ public class HottracksPythonScriptExecutor {
                         SalesRecord newRecord = SalesRecord.builder()
                                 .salesLocation(salesLocation)
                                 .product(product)
-                                .salesDate(LocalDate.now().minusDays(1))
+                                .salesDate(targetDate)
                                 .quantity(quantity)
                                 .salesAmount(salesAmount)
                                 .actualSales(actualSales)

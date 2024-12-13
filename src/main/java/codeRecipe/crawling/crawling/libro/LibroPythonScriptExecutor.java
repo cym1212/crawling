@@ -22,6 +22,8 @@ import org.springframework.stereotype.Component;
 
 import java.io.*;
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -47,6 +49,7 @@ public class LibroPythonScriptExecutor {
     private final SalesRecordRepository salesRecordRepository;
     private final SalesLocationRepository salesLocationRepository;
 
+    LocalDate targetDate = ZonedDateTime.now(ZoneId.of("Asia/Seoul")).minusDays(1).toLocalDate();
     private static final Logger logger = LoggerFactory.getLogger(LibroPythonScriptExecutor.class);
 
     String[] LibroRegion = {"수원점","상봉점","시흥점","기흥점","원주점","분당수내점","구로점(NC)","광명점","광양점"};
@@ -189,7 +192,7 @@ public class LibroPythonScriptExecutor {
                         salesLocation = salesLocationRepository.save(salesLocation);
                     }
                     SalesRecord existingRecord = salesRecordRepository.findTopBySalesLocationAndProductAndSalesDate(
-                            salesLocation, product, LocalDate.now().minusDays(1)
+                            salesLocation, product, targetDate
                     );
 
                     if (existingRecord == null || !existingRecord.isSameSalesRecord(quantity, salesPrice, regionSalesAmount, regionQuantity, salesAmount)) {
@@ -197,7 +200,7 @@ public class LibroPythonScriptExecutor {
                                 .salesLocation(salesLocation)
                                 .product(product)
                                 .salesPrice(salesPrice)
-                                .salesDate(LocalDate.now().minusDays(1))
+                                .salesDate(targetDate)
                                 .quantity(quantity)
                                 .regionSalesAmount(regionSalesAmount)
                                 .regionSalesQuantity(regionQuantity)
