@@ -6,6 +6,7 @@ spring:
       - classpath:application-hottracks.yml
       - classpath:application-libro.yml
       - classpath:application-arcnbook.yml
+      - classpath:application-slack-webhook.yml
   servlet:
     multipart:
       maxFileSize: 10MB

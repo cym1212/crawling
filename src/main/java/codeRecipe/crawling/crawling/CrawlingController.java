@@ -21,6 +21,8 @@ public class CrawlingController {
     private final HottracksPythonScriptExecutor hottracksPythonScriptExecutor;
     private final LibroPythonScriptExecutor libroPythonScriptExecutor;
     private final ArcnbookPythonScriptExecutor arcnbookPythonScriptExecutor;
+    private final SlackWebhookService slackWebhookService;
+    private final DataProcessingService dataProcessingService;
 
     @PostMapping("/hottracks")
     public String  hottracks() throws Exception {
@@ -38,6 +40,16 @@ public class CrawlingController {
     public String  arcnbook() throws Exception {
 
         return arcnbookPythonScriptExecutor.excutePythonScript();
+    }
+
+    @PostMapping("/slack")
+    public void sendMessageToSlack() {
+        slackWebhookService.sendMessageToSlack();
+    }
+
+    @PostMapping("test")
+    public String  test(){
+        return dataProcessingService.DataProcessing();
     }
 
 

@@ -41,5 +41,6 @@ application-arcnbook.yml
 application-database.yml
 application-hottracks.yml
 application-libro.yml
+application-slack-webhook.yml
 
 .DS_Store

@@ -13,6 +13,7 @@ public class SchedulingService {
     private final HottracksPythonScriptExecutor hottracksPythonScriptExecutor;
     private final LibroPythonScriptExecutor libroPythonScriptExecutor;
     private final ArcnbookPythonScriptExecutor arcnbookPythonScriptExecutor;
+    private final SlackWebhookService slackWebhookService;
 
     @Scheduled(cron = "0 0 1 * * *")
     public void executeScheduledTask() {
@@ -24,6 +25,15 @@ public class SchedulingService {
             System.out.println("Success: " + hottracks);
             System.out.println("Success: " + libro);
             System.out.println("Success: " + arcnbook);
+        } catch (Exception e) {
+            System.err.println("Error: " + e.getMessage());
+        }
+    }
+
+    @Scheduled(cron = "0 0 11 * * *")
+    public void sendMessageToSlack() {
+        try {
+            slackWebhookService.sendMessageToSlack();
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
         }
