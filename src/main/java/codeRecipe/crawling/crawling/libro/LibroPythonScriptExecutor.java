@@ -49,7 +49,7 @@ public class LibroPythonScriptExecutor {
     private final SalesRecordRepository salesRecordRepository;
     private final SalesLocationRepository salesLocationRepository;
 
-    LocalDate targetDate = ZonedDateTime.now(ZoneId.of("Asia/Seoul")).minusDays(1).toLocalDate();
+    LocalDate targetDate = LocalDate.now(ZoneId.of("Asia/Seoul")).minusDays(1);
     private static final Logger logger = LoggerFactory.getLogger(LibroPythonScriptExecutor.class);
 
     String[] LibroRegion = {"수원점","상봉점","시흥점","기흥점","원주점","분당수내점","구로점(NC)","광명점","광양점"};

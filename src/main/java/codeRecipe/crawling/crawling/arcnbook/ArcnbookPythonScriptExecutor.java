@@ -51,7 +51,7 @@ public class ArcnbookPythonScriptExecutor {
     private final SalesLocationRepository salesLocationRepository;
 
     private static final Logger logger = LoggerFactory.getLogger(LibroPythonScriptExecutor.class);
-    LocalDate targetDate = ZonedDateTime.now(ZoneId.of("Asia/Seoul")).minusDays(1).toLocalDate();
+    LocalDate targetDate = LocalDate.now(ZoneId.of("Asia/Seoul")).minusDays(1);
 
     String[] ArcnbookRegion = {"수지점","신촌점","롯데월드몰점","동탄호수점","월계점","부산아시아드점","몬드리안점","광안리점","아크앤북온라인","충청점","부산명지점","세종점"};
     String locationName = "Arcnbook";

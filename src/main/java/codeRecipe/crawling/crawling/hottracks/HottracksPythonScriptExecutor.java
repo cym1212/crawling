@@ -51,7 +51,7 @@ public class HottracksPythonScriptExecutor {
     private final SalesRecordRepository salesRecordRepository;
     private final SalesLocationRepository salesLocationRepository;
 
-    LocalDate targetDate = ZonedDateTime.now(ZoneId.of("Asia/Seoul")).minusDays(1).toLocalDate();
+    LocalDate targetDate = LocalDate.now(ZoneId.of("Asia/Seoul")).minusDays(1);
 
     private String getPythonPath() {
         return "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3";

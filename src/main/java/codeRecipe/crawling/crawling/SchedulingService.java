@@ -16,7 +16,63 @@ public class SchedulingService {
     private final SlackWebhookService slackWebhookService;
 
     @Scheduled(cron = "0 0 1 * * *")
-    public void executeScheduledTask() {
+    public void executeScheduledTask1() {
+        try {
+            String hottracks = hottracksPythonScriptExecutor.excutePythonScript();
+            String libro = libroPythonScriptExecutor.excutePythonScript();
+            String arcnbook = arcnbookPythonScriptExecutor.excutePythonScript();
+
+            System.out.println("Success: " + hottracks);
+            System.out.println("Success: " + libro);
+            System.out.println("Success: " + arcnbook);
+        } catch (Exception e) {
+            System.err.println("Error: " + e.getMessage());
+        }
+    }
+    @Scheduled(cron = "0 0 1 30 * *")
+    public void executeScheduledTask2() {
+        try {
+            String hottracks = hottracksPythonScriptExecutor.excutePythonScript();
+            String libro = libroPythonScriptExecutor.excutePythonScript();
+            String arcnbook = arcnbookPythonScriptExecutor.excutePythonScript();
+
+            System.out.println("Success: " + hottracks);
+            System.out.println("Success: " + libro);
+            System.out.println("Success: " + arcnbook);
+        } catch (Exception e) {
+            System.err.println("Error: " + e.getMessage());
+        }
+    }
+    @Scheduled(cron = "0 0 2 * * *")
+    public void executeScheduledTask3() {
+        try {
+            String hottracks = hottracksPythonScriptExecutor.excutePythonScript();
+            String libro = libroPythonScriptExecutor.excutePythonScript();
+            String arcnbook = arcnbookPythonScriptExecutor.excutePythonScript();
+
+            System.out.println("Success: " + hottracks);
+            System.out.println("Success: " + libro);
+            System.out.println("Success: " + arcnbook);
+        } catch (Exception e) {
+            System.err.println("Error: " + e.getMessage());
+        }
+    }
+    @Scheduled(cron = "0 0 2 30 * *")
+    public void executeScheduledTask4() {
+        try {
+            String hottracks = hottracksPythonScriptExecutor.excutePythonScript();
+            String libro = libroPythonScriptExecutor.excutePythonScript();
+            String arcnbook = arcnbookPythonScriptExecutor.excutePythonScript();
+
+            System.out.println("Success: " + hottracks);
+            System.out.println("Success: " + libro);
+            System.out.println("Success: " + arcnbook);
+        } catch (Exception e) {
+            System.err.println("Error: " + e.getMessage());
+        }
+    }
+    @Scheduled(cron = "0 0 3 * * *")
+    public void executeScheduledTask5() {
         try {
             String hottracks = hottracksPythonScriptExecutor.excutePythonScript();
             String libro = libroPythonScriptExecutor.excutePythonScript();
