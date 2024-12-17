@@ -122,6 +122,9 @@ public class LibroPythonScriptExecutor {
 //        saveSalesLocations();
         parseAndSaveData(parsedData);
 
+        System.out.println("현재 LocalDate = " + LocalDate.now());
+        System.out.println("리브로 시간 = " + targetDate);
+
         return rawData;
     }
 
@@ -205,6 +208,7 @@ public class LibroPythonScriptExecutor {
                                 .regionSalesAmount(regionSalesAmount)
                                 .regionSalesQuantity(regionQuantity)
                                 .salesAmount(salesAmount)
+                                .createdAt(LocalDate.now())
                                 .build();
 
                         salesRecordRepository.save(salesRecord);

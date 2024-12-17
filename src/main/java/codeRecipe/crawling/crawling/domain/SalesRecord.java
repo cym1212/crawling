@@ -52,6 +52,9 @@ public class SalesRecord {
     @Column
     private Long salesCost; // 매출 원가 (핫트랙스 사이트)
 
+    @Column
+    private LocalDate createdAt;
+
 
     public boolean isSameSalesRecord(Long quantity, Long salesPrice, Long regionSalesAmount, Long regionSalesQuantity, Long salesAmount) {
         return this.quantity.equals(quantity) &&

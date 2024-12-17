@@ -1,5 +1,7 @@
 #spring.application.name=crawling
 spring:
+  jackson:
+    time-zone: Asia/Seoul
   config:
     import:
       - classpath:application-database.yml
@@ -23,11 +25,25 @@ springdoc:
     path: /swagger
 
 logging:
+  time-zone : Asia/Seoul
   level:
     org.springframework.security: DEBUG
 
 server:
   port: 8081
+
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+
+  endpoint:
+    connectj-timezone:
+      enabled: true
+
+
 
 
 

@@ -15,7 +15,8 @@ public class SchedulingService {
     private final ArcnbookPythonScriptExecutor arcnbookPythonScriptExecutor;
     private final SlackWebhookService slackWebhookService;
 
-    @Scheduled(cron = "0 0 1 * * *")
+    @Scheduled(cron = "0 0 1 * * * ", zone = "Asia/Seoul")
+//    @Scheduled(cron = "0 * * * * ?", zone = "Asia/Seoul")
     public void executeScheduledTask1() {
         try {
             String hottracks = hottracksPythonScriptExecutor.excutePythonScript();
@@ -29,7 +30,8 @@ public class SchedulingService {
             System.err.println("Error: " + e.getMessage());
         }
     }
-    @Scheduled(cron = "0 0 1 30 * *")
+
+    @Scheduled(cron = "0 0 1 30 * *", zone = "Asia/Seoul")
     public void executeScheduledTask2() {
         try {
             String hottracks = hottracksPythonScriptExecutor.excutePythonScript();
@@ -43,7 +45,8 @@ public class SchedulingService {
             System.err.println("Error: " + e.getMessage());
         }
     }
-    @Scheduled(cron = "0 0 2 * * *")
+
+    @Scheduled(cron = "0 0 2 * * *", zone = "Asia/Seoul")
     public void executeScheduledTask3() {
         try {
             String hottracks = hottracksPythonScriptExecutor.excutePythonScript();
@@ -57,7 +60,8 @@ public class SchedulingService {
             System.err.println("Error: " + e.getMessage());
         }
     }
-    @Scheduled(cron = "0 0 2 30 * *")
+
+    @Scheduled(cron = "0 0 2 30 * *", zone = "Asia/Seoul")
     public void executeScheduledTask4() {
         try {
             String hottracks = hottracksPythonScriptExecutor.excutePythonScript();
@@ -71,7 +75,8 @@ public class SchedulingService {
             System.err.println("Error: " + e.getMessage());
         }
     }
-    @Scheduled(cron = "0 0 3 * * *")
+
+    @Scheduled(cron = "0 0 3 * * *", zone = "Asia/Seoul")
     public void executeScheduledTask5() {
         try {
             String hottracks = hottracksPythonScriptExecutor.excutePythonScript();
@@ -86,7 +91,7 @@ public class SchedulingService {
         }
     }
 
-    @Scheduled(cron = "0 0 11 * * *")
+    @Scheduled(cron = "0 0 11 * * *", zone = "Asia/Seoul")
     public void sendMessageToSlack() {
         try {
             slackWebhookService.sendMessageToSlack();

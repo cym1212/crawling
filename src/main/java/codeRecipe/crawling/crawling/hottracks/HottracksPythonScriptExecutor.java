@@ -110,7 +110,10 @@ public class HottracksPythonScriptExecutor {
 
         parseAndSaveData(String.valueOf(output));
 
-
+        System.out.println("핫트랙스 시간 = " + targetDate);
+        System.out.println("user.timezone: " + System.getProperty("user.timezone"));
+        System.out.println("현재 LocalDate = " + LocalDate.now());
+        System.out.println("현재 LocalDate = " + LocalDate.now().minusDays(1));
         return output.toString();
     }
 
@@ -180,6 +183,7 @@ public class HottracksPythonScriptExecutor {
                                 .salesAmount(salesAmount)
                                 .actualSales(actualSales)
                                 .salesCost(salesCost)
+                                .createdAt(LocalDate.now())
                                 .build();
                         salesRecordRepository.save(newRecord);
                     }
