@@ -1,6 +1,5 @@
 name: CI/CD
 
-
 on:
   push:
     branches:
@@ -16,7 +15,7 @@ jobs:
         uses: actions/checkout@v3
 
 
-        
+
       - name: Set up JDK 17
         uses: actions/setup-java@v3
         with:
@@ -56,4 +55,6 @@ jobs:
           password: ${{ secrets.SSH_PASSWORD}}
           script: |
             lsof -ti:8081 | xargs kill  || true
-            nohup java -jar crawling-0.0.1-SNAPSHOT.jar &
+            nohup java -jar crawling-0.0.1-SNAPSHOT.jar > app.log 2>&1 &
+            disown
+            exit
