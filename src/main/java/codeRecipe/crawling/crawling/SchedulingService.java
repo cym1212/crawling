@@ -15,7 +15,7 @@ public class SchedulingService {
     private final ArcnbookPythonScriptExecutor arcnbookPythonScriptExecutor;
     private final SlackWebhookService slackWebhookService;
 
-//    @Scheduled(cron = "0 0 1 * * * ", zone = "Asia/Seoul")
+    @Scheduled(cron = "0 0 1 * * * ", zone = "Asia/Seoul")
 //    @Scheduled(cron = "0 * * * * ?", zone = "Asia/Seoul")
     public void executeScheduledTask1() {
         try {

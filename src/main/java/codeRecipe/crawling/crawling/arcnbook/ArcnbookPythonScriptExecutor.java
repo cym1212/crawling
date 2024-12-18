@@ -54,24 +54,25 @@ public class ArcnbookPythonScriptExecutor {
     private final SalesLocationRepository salesLocationRepository;
 
     private static final Logger logger = LoggerFactory.getLogger(ArcnbookPythonScriptExecutor.class);
-//    ZonedDateTime nowInSeoul = ZonedDateTime.now(ZoneId.of("Asia/Seoul"));
-//LocalDate targetDate = nowInSeoul.minusDays(1).toLocalDate();
+    ZonedDateTime nowInSeoul = ZonedDateTime.now(ZoneId.of("Asia/Seoul"));
+    LocalDate targetDate = nowInSeoul.minusDays(1).toLocalDate();
 
-    ZonedDateTime mockNowInSeoul = ZonedDateTime.of(2024, 12, 18, 1, 0, 0, 0, ZoneId.of("Asia/Seoul"));
-    LocalDate targetDate = mockNowInSeoul.minusDays(1).toLocalDate();
+//    ZonedDateTime mockNowInSeoul = ZonedDateTime.of(2024, 12, 18, 1, 0, 0, 0, ZoneId.of("Asia/Seoul"));
+//    LocalDate targetDate = mockNowInSeoul.minusDays(1).toLocalDate();
 
-    String[] ArcnbookRegion = {"수지점","신촌점","롯데월드몰점","동탄호수점","월계점","부산아시아드점","몬드리안점","광안리점","아크앤북온라인","충청점","부산명지점","세종점"};
+    String[] ArcnbookRegion = {"수지점", "신촌점", "롯데월드몰점", "동탄호수점", "월계점", "부산아시아드점", "몬드리안점", "광안리점", "아크앤북온라인", "충청점", "부산명지점", "세종점"};
     String locationName = "Arcnbook";
-
 
 
     private String getPythonPath() {
         return "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3";
     }
+
     public String getScriptPath() throws IOException {
         Resource resource = resourceLoader.getResource("classpath:scripts/ArcnbookCrawler.py");
         return resource.getFile().getAbsolutePath(); // 실제 파일 경로 반환
     }
+
     public String excutePythonScript() throws Exception {
 
         String pythonPath = new File("venv/bin/python3").getAbsolutePath();
@@ -137,12 +138,12 @@ public class ArcnbookPythonScriptExecutor {
         System.out.println("현재 LocalDate = " + LocalDate.now());
         System.out.println("현재 LocalDate - 1일 = " + LocalDate.now().minusDays(1));
 
-        System.out.println("Scheduled Time (Seoul): {}"+ mockNowInSeoul);
+        System.out.println("Scheduled Time (Seoul): {}" + nowInSeoul);
         System.out.println("Calculated Target Date: {}" + targetDate);
-        System.out.println("System Default Time Zone: {}"+ TimeZone.getDefault().getID());
-        System.out.println("System Default ZoneId: {}"+ ZoneId.systemDefault());
-        System.out.println("LocalDate.now(): {}"+ LocalDate.now());
-        System.out.println("LocalDate.now(ZoneId.of('Asia/Seoul')): {}"+ LocalDate.now(ZoneId.of("Asia/Seoul")));
+        System.out.println("System Default Time Zone: {}" + TimeZone.getDefault().getID());
+        System.out.println("System Default ZoneId: {}" + ZoneId.systemDefault());
+        System.out.println("LocalDate.now(): {}" + LocalDate.now());
+        System.out.println("LocalDate.now(ZoneId.of('Asia/Seoul')): {}" + LocalDate.now(ZoneId.of("Asia/Seoul")));
         return rawData;
     }
 
@@ -150,10 +151,9 @@ public class ArcnbookPythonScriptExecutor {
     public void parseAndSaveData(List<List<String>> jsonData) throws Exception {
 
 
+        for (List<String> row : jsonData) {
 
-        for(List<String> row : jsonData) {
-
-            if(row.size() >1){
+            if (row.size() > 1) {
                 String productCode = row.get(0);
                 String productName = row.get(1);
                 String publisher = row.get(2);
@@ -181,11 +181,9 @@ public class ArcnbookPythonScriptExecutor {
                 }
 
 
-
-                for (int i = 7; i +1 < row.size(); i += 2) {
+                for (int i = 7; i + 1 < row.size(); i += 2) {
                     String regionQuantityStr = row.get(i).replace(",", "").trim();
                     String regionSalesAmountStr = row.get(i + 1).replace(",", "").trim();
-
 
 
                     // 추가된 유효성 검사
@@ -238,8 +236,9 @@ public class ArcnbookPythonScriptExecutor {
             }
         }
     }
-    private void saveSalesLocations(){
-        for(String region : ArcnbookRegion){
+
+    private void saveSalesLocations() {
+        for (String region : ArcnbookRegion) {
             boolean exists = salesLocationRepository.existsByLocationNameAndRegion(locationName, region);
             if (!exists) {
                 SalesLocation location = SalesLocation.builder()

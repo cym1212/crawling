@@ -17,6 +17,12 @@ public class CrawlingController {
     // 1. 업체 종류가 추가될 경우 코드 수정해야함
 
 
+    //todo
+    //  1. ci/cd 코드 손보기
+    //  2. 리브로, 아크앤북 로그인 오류 발생시 재시도하도록 코드 수정
+    //
+
+
     private final ResourceLoader resourceLoader;
     private final HottracksPythonScriptExecutor hottracksPythonScriptExecutor;
     private final LibroPythonScriptExecutor libroPythonScriptExecutor;

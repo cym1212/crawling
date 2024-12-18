@@ -54,7 +54,8 @@ jobs:
           username: root
           password: ${{ secrets.SSH_PASSWORD}}
           script: |
-            lsof -ti:8081 | xargs kill  || true
-            nohup java -Duser.timezone=Asia/Seoul -jar crawling-0.0.1-SNAPSHOT.jar > app.log 2>&1 &
+#            lsof -ti:8081 | xargs kill  || true
+            pkill -f crawling-0.0.1-SNAPSHOT.jar || true
+            nohup java -Duser.timezone=Asia/Seoul -jar crawling-0.0.1-SNAPSHOT.jar > /root/app.log 2>&1 &
             disown
             exit
