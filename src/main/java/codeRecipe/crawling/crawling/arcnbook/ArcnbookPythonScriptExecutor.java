@@ -137,12 +137,12 @@ public class ArcnbookPythonScriptExecutor {
         System.out.println("현재 LocalDate = " + LocalDate.now());
         System.out.println("현재 LocalDate - 1일 = " + LocalDate.now().minusDays(1));
 
-        log.info("Scheduled Time (Seoul): {}", mockNowInSeoul);
-        log.info("Calculated Target Date: {}", targetDate);
-        log.info("System Default Time Zone: {}", TimeZone.getDefault().getID());
-        log.info("System Default ZoneId: {}", ZoneId.systemDefault());
-        log.info("LocalDate.now(): {}", LocalDate.now());
-        log.info("LocalDate.now(ZoneId.of('Asia/Seoul')): {}", LocalDate.now(ZoneId.of("Asia/Seoul")));
+        System.out.println("Scheduled Time (Seoul): {}"+ mockNowInSeoul);
+        System.out.println("Calculated Target Date: {}" + targetDate);
+        System.out.println("System Default Time Zone: {}"+ TimeZone.getDefault().getID());
+        System.out.println("System Default ZoneId: {}"+ ZoneId.systemDefault());
+        System.out.println("LocalDate.now(): {}"+ LocalDate.now());
+        System.out.println("LocalDate.now(ZoneId.of('Asia/Seoul')): {}"+ LocalDate.now(ZoneId.of("Asia/Seoul")));
         return rawData;
     }
 
