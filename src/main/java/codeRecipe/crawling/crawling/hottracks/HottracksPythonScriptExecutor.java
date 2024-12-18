@@ -45,18 +45,17 @@ public class HottracksPythonScriptExecutor {
     private String targetUrl;
 
 
-
     private final ResourceLoader resourceLoader;
     private final ProductRepository productRepository;
     private final SalesRecordRepository salesRecordRepository;
     private final SalesLocationRepository salesLocationRepository;
 
-    LocalDate targetDate = LocalDate.now(ZoneId.of("Asia/Seoul")).minusDays(1);
+    ZonedDateTime nowInSeoul = ZonedDateTime.now(ZoneId.of("Asia/Seoul"));
+    LocalDate targetDate = nowInSeoul.minusDays(1).toLocalDate();
 
     private String getPythonPath() {
         return "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3";
     }
-
 
 
     public String getScriptPath() throws IOException {
@@ -65,8 +64,7 @@ public class HottracksPythonScriptExecutor {
     }
 
 
-
-    public String  excutePythonScript() throws Exception {
+    public String excutePythonScript() throws Exception {
 
         String pythonPath = new File("venv/bin/python3").getAbsolutePath();
 
@@ -94,7 +92,7 @@ public class HottracksPythonScriptExecutor {
         processBuilder.redirectErrorStream(true);
         Process process = processBuilder.start();
 
-       StringBuilder output = new StringBuilder();
+        StringBuilder output = new StringBuilder();
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
             String line;
             while ((line = reader.readLine()) != null) {
@@ -113,7 +111,7 @@ public class HottracksPythonScriptExecutor {
         System.out.println("핫트랙스 시간 = " + targetDate);
         System.out.println("user.timezone: " + System.getProperty("user.timezone"));
         System.out.println("현재 LocalDate = " + LocalDate.now());
-        System.out.println("현재 LocalDate = " + LocalDate.now().minusDays(1));
+        System.out.println("현재 LocalDate - 1일 = " + LocalDate.now().minusDays(1));
         return output.toString();
     }
 
@@ -141,7 +139,7 @@ public class HottracksPythonScriptExecutor {
 //            salesLocations.add(salesLocation);
 
             JsonNode rows = locationNode.get("data").get("rows");
-            if (rows.size() > 0 && !"매출내역이 없습니다.".equals(rows.get(0).get(0).asText())){
+            if (rows.size() > 0 && !"매출내역이 없습니다.".equals(rows.get(0).get(0).asText())) {
                 for (JsonNode row : rows) {
                     String productName = row.get(1).asText();
                     String productCode = row.get(2).asText();
