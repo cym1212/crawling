@@ -53,7 +53,7 @@ jobs:
           username: root
           password: ${{ secrets.SSH_PASSWORD }}
           script: |
-            pkill -f crawling-0.0.1-SNAPSHOT.jar || true
+            lsof -ti:8081 | xargs kill  || true
             sleep 3
             nohup java -Duser.timezone=Asia/Seoul -jar crawling-0.0.1-SNAPSHOT.jar > app.log &
             sleep 3
