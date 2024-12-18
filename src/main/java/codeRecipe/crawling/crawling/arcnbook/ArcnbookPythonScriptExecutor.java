@@ -157,10 +157,12 @@ public class ArcnbookPythonScriptExecutor {
                 String productCode = row.get(0);
                 String productName = row.get(1);
                 String publisher = row.get(2);
-                Long salesPrice = Long.valueOf(row.get(3).replace(",","").trim());
-                Long quantity = Long.valueOf(row.get(5).replace(",", "").trim());
-                Long salesAmount = Long.valueOf(row.get(6).replace(",","").trim());
-
+//                Long salesPrice = Long.valueOf(row.get(3).replace(",","").trim());
+//                Long quantity = Long.valueOf(row.get(5).replace(",", "").trim());
+//                Long salesAmount = Long.valueOf(row.get(6).replace(",","").trim());
+                Long salesPrice = parseLongSafe(row.get(3));
+                Long quantity = parseLongSafe(row.get(5));
+                Long salesAmount = parseLongSafe(row.get(6));
 
                 Product product = productRepository.findByProductCode(productCode);
                 if (product == null) {
@@ -250,4 +252,13 @@ public class ArcnbookPythonScriptExecutor {
         }
     }
 
+    private Long parseLongSafe(String value) {
+        try {
+            return Long.valueOf(value.replace(",", "").trim());
+        } catch (NumberFormatException e) {
+            log.warn("Invalid number format for value: {}", value);
+            return null;
+
+        }
+    }
 }

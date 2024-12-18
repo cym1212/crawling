@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -32,6 +33,7 @@ import java.util.List;
 @Getter
 //@Builder
 @Component
+@Slf4j
 public class LibroPythonScriptExecutor {
 
     @Value("${app.login.libro-url}")
@@ -142,9 +144,9 @@ LocalDate targetDate = nowInSeoul.minusDays(1).toLocalDate();
                 String productCode = row.get(0);
                 String productName = row.get(1);
                 String publisher = row.get(2);
-                Long salesPrice = Long.valueOf(row.get(3).replace(",","").trim());
-                Long quantity = Long.valueOf(row.get(5));
-                Long salesAmount = Long.valueOf(row.get(6).replace(",","").trim());
+                Long salesPrice = parseLongSafe(row.get(3));
+                Long quantity = parseLongSafe(row.get(5));
+                Long salesAmount = parseLongSafe(row.get(6));
 
 
                 Product product = productRepository.findByProductCode(productCode);
@@ -234,4 +236,13 @@ LocalDate targetDate = nowInSeoul.minusDays(1).toLocalDate();
         }
     }
 
+    private Long parseLongSafe(String value) {
+        try {
+            return Long.valueOf(value.replace(",", "").trim());
+        } catch (NumberFormatException e) {
+            log.warn("Invalid number format for value: {}", value);
+            return null;
+
+        }
+    }
 }

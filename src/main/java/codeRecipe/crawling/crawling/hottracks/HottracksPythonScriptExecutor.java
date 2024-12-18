@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
@@ -30,6 +31,7 @@ import java.util.Optional;
 @Getter
 //@Builder
 @Component
+@Slf4j
 public class HottracksPythonScriptExecutor {
 
     @Value("${app.login.hottracks-url}")
@@ -143,11 +145,14 @@ public class HottracksPythonScriptExecutor {
                 for (JsonNode row : rows) {
                     String productName = row.get(1).asText();
                     String productCode = row.get(2).asText();
-                    Long quantity = Long.parseLong(row.get(3).asText().replace(",", "").trim());
-                    Long salesAmount = Long.parseLong(row.get(4).asText().replace(",", ""));
-                    Long actualSales = Long.parseLong(row.get(5).asText().replace(",", ""));
-                    Long salesCost = Long.parseLong(row.get(6).asText().replace(",", ""));
-
+//                    Long quantity = Long.parseLong(row.get(3).asText().replace(",", "").trim());
+//                    Long salesAmount = Long.parseLong(row.get(4).asText().replace(",", ""));
+//                    Long actualSales = Long.parseLong(row.get(5).asText().replace(",", ""));
+//                    Long salesCost = Long.parseLong(row.get(6).asText().replace(",", ""));
+                    Long quantity = parseLongSafe(row.get(3).asText());
+                    Long salesAmount = parseLongSafe(row.get(4).asText());
+                    Long actualSales = parseLongSafe(row.get(5).asText());
+                    Long salesCost = parseLongSafe(row.get(6).asText());
                     Product product = productRepository.findByProductCode(productCode);
 //                    Product product = Product.builder()
 //                            .productCode(productCode)
@@ -193,5 +198,13 @@ public class HottracksPythonScriptExecutor {
 //        salesRecordRepository.saveAll(salesRecords);
     }
 
+    private Long parseLongSafe(String value) {
+        try {
+            return Long.valueOf(value.replace(",", "").trim());
+        } catch (NumberFormatException e) {
+            log.warn("Invalid number format for value: {}", value);
+            return null;
 
+        }
+    }
 }
