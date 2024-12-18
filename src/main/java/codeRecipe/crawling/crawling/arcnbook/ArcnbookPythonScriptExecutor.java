@@ -54,9 +54,11 @@ public class ArcnbookPythonScriptExecutor {
     private final SalesLocationRepository salesLocationRepository;
 
     private static final Logger logger = LoggerFactory.getLogger(ArcnbookPythonScriptExecutor.class);
-    ZonedDateTime nowInSeoul = ZonedDateTime.now(ZoneId.of("Asia/Seoul"));
-LocalDate targetDate = nowInSeoul.minusDays(1).toLocalDate();
+//    ZonedDateTime nowInSeoul = ZonedDateTime.now(ZoneId.of("Asia/Seoul"));
+//LocalDate targetDate = nowInSeoul.minusDays(1).toLocalDate();
 
+    ZonedDateTime mockNowInSeoul = ZonedDateTime.of(2024, 12, 18, 1, 0, 0, 0, ZoneId.of("Asia/Seoul"));
+    LocalDate targetDate = mockNowInSeoul.minusDays(1).toLocalDate();
 
     String[] ArcnbookRegion = {"수지점","신촌점","롯데월드몰점","동탄호수점","월계점","부산아시아드점","몬드리안점","광안리점","아크앤북온라인","충청점","부산명지점","세종점"};
     String locationName = "Arcnbook";
@@ -135,7 +137,7 @@ LocalDate targetDate = nowInSeoul.minusDays(1).toLocalDate();
         System.out.println("현재 LocalDate = " + LocalDate.now());
         System.out.println("현재 LocalDate - 1일 = " + LocalDate.now().minusDays(1));
 
-        log.info("Scheduled Time (Seoul): {}", nowInSeoul);
+        log.info("Scheduled Time (Seoul): {}", mockNowInSeoul);
         log.info("Calculated Target Date: {}", targetDate);
         log.info("System Default Time Zone: {}", TimeZone.getDefault().getID());
         log.info("System Default ZoneId: {}", ZoneId.systemDefault());
