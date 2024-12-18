@@ -15,7 +15,7 @@ public class SchedulingService {
     private final ArcnbookPythonScriptExecutor arcnbookPythonScriptExecutor;
     private final SlackWebhookService slackWebhookService;
 
-    @Scheduled(cron = "0 0 1 * * * ", zone = "Asia/Seoul")
+//    @Scheduled(cron = "0 0 1 * * * ", zone = "Asia/Seoul")
 //    @Scheduled(cron = "0 * * * * ?", zone = "Asia/Seoul")
     public void executeScheduledTask1() {
         try {
@@ -41,6 +41,8 @@ public class SchedulingService {
             System.out.println("Success: " + hottracks);
             System.out.println("Success: " + libro);
             System.out.println("Success: " + arcnbook);
+
+
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
         }

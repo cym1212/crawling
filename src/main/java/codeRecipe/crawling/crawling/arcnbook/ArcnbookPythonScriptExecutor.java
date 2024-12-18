@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,12 +28,14 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.TimeZone;
 
 
 @RequiredArgsConstructor
 @Getter
 //@Builder
 @Component
+@Slf4j
 public class ArcnbookPythonScriptExecutor {
 
     @Value("${app.login.arcnbook-url}")
@@ -131,6 +134,13 @@ LocalDate targetDate = nowInSeoul.minusDays(1).toLocalDate();
         System.out.println("user.timezone: " + System.getProperty("user.timezone"));
         System.out.println("현재 LocalDate = " + LocalDate.now());
         System.out.println("현재 LocalDate - 1일 = " + LocalDate.now().minusDays(1));
+
+        log.info("Scheduled Time (Seoul): {}", nowInSeoul);
+        log.info("Calculated Target Date: {}", targetDate);
+        log.info("System Default Time Zone: {}", TimeZone.getDefault().getID());
+        log.info("System Default ZoneId: {}", ZoneId.systemDefault());
+        log.info("LocalDate.now(): {}", LocalDate.now());
+        log.info("LocalDate.now(ZoneId.of('Asia/Seoul')): {}", LocalDate.now(ZoneId.of("Asia/Seoul")));
         return rawData;
     }
 
