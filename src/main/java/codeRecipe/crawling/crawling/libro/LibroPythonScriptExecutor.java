@@ -170,7 +170,7 @@ LocalDate targetDate = nowInSeoul.minusDays(1).toLocalDate();
 
 
                     // 추가된 유효성 검사
-                    if (!regionQuantityStr.matches("\\d+") || !regionSalesAmountStr.matches("\\d+")) {
+                    if (!regionQuantityStr.matches("-?\\d+") || !regionSalesAmountStr.matches("-?\\d+")) {
                         throw new IllegalArgumentException("Invalid number format: " + regionQuantityStr + ", " + regionSalesAmountStr);
                     }
 

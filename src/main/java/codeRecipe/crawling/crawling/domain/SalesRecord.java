@@ -53,7 +53,9 @@ public class SalesRecord {
     private Long salesCost; // 매출 원가 (핫트랙스 사이트)
 
     @Column
-    private LocalDate createdAt;
+    private LocalDate createdAt; // 생성 시간
+
+
 
 
     public boolean isSameSalesRecord(Long quantity, Long salesPrice, Long regionSalesAmount, Long regionSalesQuantity, Long salesAmount) {

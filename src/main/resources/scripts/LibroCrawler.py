@@ -32,8 +32,8 @@ def activate_and_run():
 
 def capture_s_id_from_request_headers(login_url, username, password):
     #로컬에서 실행시 주석 처리 (서버에서 가상화면 띄우는 코드)
-#     display = Display(visible=0, size=(1920, 1080))
-#     display.start()
+    display = Display(visible=0, size=(1920, 1080))
+    display.start()
 
     options = webdriver.ChromeOptions()
 #     options.add_argument('--headless=new')
@@ -163,7 +163,7 @@ def capture_s_id_from_request_headers(login_url, username, password):
     finally:
         driver.quit()
 #         로컬에서 실행시 주석 처리 (서버에서 가상화면 띄우는 코드)
-#         display.stop()
+        display.stop()
 
 
 

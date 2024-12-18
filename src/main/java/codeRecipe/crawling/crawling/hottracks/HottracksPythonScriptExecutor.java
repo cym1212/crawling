@@ -143,7 +143,7 @@ public class HottracksPythonScriptExecutor {
                 for (JsonNode row : rows) {
                     String productName = row.get(1).asText();
                     String productCode = row.get(2).asText();
-                    Long quantity = Long.parseLong(row.get(3).asText());
+                    Long quantity = Long.parseLong(row.get(3).asText().replace(",", "").trim());
                     Long salesAmount = Long.parseLong(row.get(4).asText().replace(",", ""));
                     Long actualSales = Long.parseLong(row.get(5).asText().replace(",", ""));
                     Long salesCost = Long.parseLong(row.get(6).asText().replace(",", ""));

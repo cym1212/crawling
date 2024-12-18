@@ -158,7 +158,7 @@ public class ArcnbookPythonScriptExecutor {
                 String productName = row.get(1);
                 String publisher = row.get(2);
                 Long salesPrice = Long.valueOf(row.get(3).replace(",","").trim());
-                Long quantity = Long.valueOf(row.get(5));
+                Long quantity = Long.valueOf(row.get(5).replace(",", "").trim());
                 Long salesAmount = Long.valueOf(row.get(6).replace(",","").trim());
 
 
@@ -187,7 +187,7 @@ public class ArcnbookPythonScriptExecutor {
 
 
                     // 추가된 유효성 검사
-                    if (!regionQuantityStr.matches("\\d+") || !regionSalesAmountStr.matches("\\d+")) {
+                    if (!regionQuantityStr.matches("-?\\d+") || !regionSalesAmountStr.matches("-?\\d+")) {
                         throw new IllegalArgumentException("Invalid number format: " + regionQuantityStr + ", " + regionSalesAmountStr);
                     }
 
