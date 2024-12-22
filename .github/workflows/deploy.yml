@@ -1,62 +1,59 @@
-name: CI/CD
-
-on:
-  push:
-    branches:
-      - main
-
-jobs:
-  deploy:
-    runs-on: ubuntu-24.04
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
-
-
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v3
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-
-
-      - name: Grant execute permission for gradlew
-        run: |
-          chmod +x gradlew
-
-      - name: Restore configuration files from GitHub Secrets
-        run: |
-          echo "${{ secrets.APPLICATION_DATABASE_YML }}" > src/main/resources/application-database.yml
-          echo "${{ secrets.APPLICATION_ARCNBOOK_YML }}" > src/main/resources/application-arcnbook.yml
-          echo "${{ secrets.APPLICATION_HOTTRACKS_YML }}" > src/main/resources/application-hottracks.yml
-          echo "${{ secrets.APPLICATION_LIBRO_YML }}" > src/main/resources/application-libro.yml
-          echo "${{ secrets.APPLICATION_SLACK_WEBHOOK_YML }}" > src/main/resources/application-slack-webhook.yml
-
-      - name: Build with Gradle
-        run: ./gradlew clean build
-
-      - name: Transfer Files to Server
-        uses: appleboy/scp-action@v0.1.4
-        with:
-          host: ${{ secrets.SSH_HOST}}
-          username: root
-          password: ${{ secrets.SSH_PASSWORD}}
-          source: "build/libs/crawling-0.0.1-SNAPSHOT.jar"
-          target: "/root"
-
-      - name: Start Application on Server
-        uses: appleboy/ssh-action@v0.1.8
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: root
-          password: ${{ secrets.SSH_PASSWORD }}
-          script: |
-            lsof -ti:8081 | xargs kill  || true
-            sleep 3
-            nohup java -Duser.timezone=Asia/Seoul -jar crawling-0.0.1-SNAPSHOT.jar > app.log &
-            sleep 3
-            echo "Application started"
-            disown
-            exit
+#name: CI/CD
+#
+#on:
+#  push:
+#    branches:
+#      - main
+#
+#jobs:
+#  deploy:
+#    runs-on: ubuntu-24.04
+#
+#    steps:
+#      - name: Checkout Code
+#        uses: actions/checkout@v3
+#
+#
+#
+#      - name: Set up JDK 17
+#        uses: actions/setup-java@v3
+#        with:
+#          java-version: '17'
+#          distribution: 'temurin'
+#
+#
+#      - name: Grant execute permission for gradlew
+#        run: |
+#          chmod +x gradlew
+#
+#      - name: Restore configuration files from GitHub Secrets
+#        run: |
+#          echo "${{ secrets.APPLICATION_DATABASE_YML }}" > src/main/resources/application-database.yml
+#          echo "${{ secrets.APPLICATION_ARCNBOOK_YML }}" > src/main/resources/application-arcnbook.yml
+#          echo "${{ secrets.APPLICATION_HOTTRACKS_YML }}" > src/main/resources/application-hottracks.yml
+#          echo "${{ secrets.APPLICATION_LIBRO_YML }}" > src/main/resources/application-libro.yml
+#          echo "${{ secrets.APPLICATION_SLACK_WEBHOOK_YML }}" > src/main/resources/application-slack-webhook.yml
+#
+#      - name: Build with Gradle
+#        run: ./gradlew clean build
+#
+#      - name: Transfer Files to Server
+#        uses: appleboy/scp-action@v0.1.4
+#        with:
+#          host: ${{ secrets.SSH_HOST}}
+#          username: root
+#          password: ${{ secrets.SSH_PASSWORD}}
+#          source: "build/libs/crawling-0.0.1-SNAPSHOT.jar"
+#          target: "/root"
+#
+#      - name: Start Application on Server
+#        uses: appleboy/ssh-action@v0.1.8
+#        with:
+#          host: ${{ secrets.SSH_HOST }}
+#          username: root
+#          password: ${{ secrets.SSH_PASSWORD }}
+#          script: |
+#            lsof -ti:8081 | xargs kill  || true
+#            nohup java -Duser.timezone=Asia/Seoul -jar crawling-0.0.1-SNAPSHOT.jar  2>&1 &
+#            disown
+#            exit

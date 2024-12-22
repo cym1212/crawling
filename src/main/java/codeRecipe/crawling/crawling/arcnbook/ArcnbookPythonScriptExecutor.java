@@ -24,6 +24,7 @@ import org.springframework.stereotype.Component;
 
 import java.io.*;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -55,7 +56,7 @@ public class ArcnbookPythonScriptExecutor {
 
     private static final Logger logger = LoggerFactory.getLogger(ArcnbookPythonScriptExecutor.class);
     ZonedDateTime nowInSeoul = ZonedDateTime.now(ZoneId.of("Asia/Seoul"));
-    LocalDate targetDate = nowInSeoul.minusDays(1).toLocalDate();
+    LocalDate targetDate = LocalDate.now().minusDays(1);
 
 //    ZonedDateTime mockNowInSeoul = ZonedDateTime.of(2024, 12, 18, 1, 0, 0, 0, ZoneId.of("Asia/Seoul"));
 //    LocalDate targetDate = mockNowInSeoul.minusDays(1).toLocalDate();
@@ -133,17 +134,32 @@ public class ArcnbookPythonScriptExecutor {
 //        saveSalesLocations();
         parseAndSaveData(parsedData);
 
-        System.out.println("아크앤 북 시간 = " + targetDate);
+        System.out.println("아크앤 북 시간 (메서드로 호출) = " + getTargetDate());
         System.out.println("user.timezone: " + System.getProperty("user.timezone"));
         System.out.println("현재 LocalDate = " + LocalDate.now());
         System.out.println("현재 LocalDate - 1일 = " + LocalDate.now().minusDays(1));
 
         System.out.println("Scheduled Time (Seoul): {}" + nowInSeoul);
-        System.out.println("Calculated Target Date: {}" + targetDate);
+        System.out.println("Calculated Target Date(클래스 단 호출): {}" + targetDate);
         System.out.println("System Default Time Zone: {}" + TimeZone.getDefault().getID());
         System.out.println("System Default ZoneId: {}" + ZoneId.systemDefault());
         System.out.println("LocalDate.now(): {}" + LocalDate.now());
         System.out.println("LocalDate.now(ZoneId.of('Asia/Seoul')): {}" + LocalDate.now(ZoneId.of("Asia/Seoul")));
+        TimeZone defaultTimeZone = TimeZone.getDefault();
+        System.out.println("JVM Default Time Zone: " + defaultTimeZone.getID());
+
+        // 시스템 시간대
+        ZoneId systemZoneId = ZoneId.systemDefault();
+        System.out.println("JVM System ZoneId: " + systemZoneId);
+
+        // 현재 JVM 시간을 LocalDateTime으로 출력
+        LocalDateTime currentLocalDateTime = LocalDateTime.now();
+        System.out.println("JVM Current LocalDateTime: " + currentLocalDateTime);
+
+        // 현재 JVM 시간을 ZonedDateTime으로 출력
+        ZonedDateTime currentZonedDateTime = ZonedDateTime.now();
+        System.out.println("JVM Current ZonedDateTime: " + currentZonedDateTime);
+
         return rawData;
     }
 
@@ -214,7 +230,7 @@ public class ArcnbookPythonScriptExecutor {
                         salesLocation = salesLocationRepository.save(salesLocation);
                     }
                     SalesRecord existingRecord = salesRecordRepository.findTopBySalesLocationAndProductAndSalesDate(
-                            salesLocation, product, targetDate
+                            salesLocation, product, getTargetDate()
                     );
 
                     if (existingRecord == null || !existingRecord.isSameSalesRecord(quantity, salesPrice, regionSalesAmount, regionQuantity, salesAmount)) {
@@ -222,7 +238,7 @@ public class ArcnbookPythonScriptExecutor {
                                 .salesLocation(salesLocation)
                                 .product(product)
                                 .salesPrice(salesPrice)
-                                .salesDate(targetDate)
+                                .salesDate(getTargetDate())
                                 .quantity(quantity)
                                 .regionSalesAmount(regionSalesAmount)
                                 .regionSalesQuantity(regionQuantity)
@@ -259,5 +275,8 @@ public class ArcnbookPythonScriptExecutor {
             return null;
 
         }
+    }
+    public LocalDate getTargetDate() {
+        return LocalDate.now().minusDays(1);
     }
 }

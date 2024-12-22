@@ -14,8 +14,7 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class DataProcessingService {
 
-    private final ProductRepository productRepository;
-    private final SalesLocationRepository salesLocationRepository;
+
     private final SalesRecordRepository salesRecordRepository;
 
     public String DataProcessing() {

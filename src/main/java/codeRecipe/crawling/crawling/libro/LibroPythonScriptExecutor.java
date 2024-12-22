@@ -51,8 +51,7 @@ public class LibroPythonScriptExecutor {
     private final SalesRecordRepository salesRecordRepository;
     private final SalesLocationRepository salesLocationRepository;
 
-    ZonedDateTime nowInSeoul = ZonedDateTime.now(ZoneId.of("Asia/Seoul"));
-LocalDate targetDate = nowInSeoul.minusDays(1).toLocalDate();
+    LocalDate targetDate = LocalDate.now().minusDays(1);
     private static final Logger logger = LoggerFactory.getLogger(LibroPythonScriptExecutor.class);
 
     String[] LibroRegion = {"수원점","상봉점","시흥점","기흥점","원주점","분당수내점","구로점(NC)","광명점","광양점"};
@@ -125,7 +124,7 @@ LocalDate targetDate = nowInSeoul.minusDays(1).toLocalDate();
 //        saveSalesLocations();
         parseAndSaveData(parsedData);
 
-        System.out.println("리브로 시간 = " + targetDate);
+        System.out.println("리브로 시간 = " + getTargetDate());
         System.out.println("user.timezone: " + System.getProperty("user.timezone"));
         System.out.println("현재 LocalDate = " + LocalDate.now());
         System.out.println("현재 LocalDate - 1일 = " + LocalDate.now().minusDays(1));
@@ -200,7 +199,7 @@ LocalDate targetDate = nowInSeoul.minusDays(1).toLocalDate();
                         salesLocation = salesLocationRepository.save(salesLocation);
                     }
                     SalesRecord existingRecord = salesRecordRepository.findTopBySalesLocationAndProductAndSalesDate(
-                            salesLocation, product, targetDate
+                            salesLocation, product, getTargetDate()
                     );
 
                     if (existingRecord == null || !existingRecord.isSameSalesRecord(quantity, salesPrice, regionSalesAmount, regionQuantity, salesAmount)) {
@@ -208,7 +207,7 @@ LocalDate targetDate = nowInSeoul.minusDays(1).toLocalDate();
                                 .salesLocation(salesLocation)
                                 .product(product)
                                 .salesPrice(salesPrice)
-                                .salesDate(targetDate)
+                                .salesDate(getTargetDate())
                                 .quantity(quantity)
                                 .regionSalesAmount(regionSalesAmount)
                                 .regionSalesQuantity(regionQuantity)
@@ -244,5 +243,8 @@ LocalDate targetDate = nowInSeoul.minusDays(1).toLocalDate();
             return null;
 
         }
+    }
+    public LocalDate getTargetDate() {
+        return LocalDate.now().minusDays(1);
     }
 }

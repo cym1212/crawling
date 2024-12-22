@@ -100,7 +100,7 @@ def capture_s_id_from_request_headers(login_url, username, password):
         calendar_button = WebDriverWait(driver, 20).until(
             EC.element_to_be_clickable((By.ID, "O20D_id-triggerWrap"))
         )
-        driver.save_screenshot('debug_screenshot_calendar.png')
+
         calendar_button.click()
 
 

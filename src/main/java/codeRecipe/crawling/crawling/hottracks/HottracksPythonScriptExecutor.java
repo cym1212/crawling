@@ -52,8 +52,7 @@ public class HottracksPythonScriptExecutor {
     private final SalesRecordRepository salesRecordRepository;
     private final SalesLocationRepository salesLocationRepository;
 
-    ZonedDateTime nowInSeoul = ZonedDateTime.now(ZoneId.of("Asia/Seoul"));
-    LocalDate targetDate = nowInSeoul.minusDays(1).toLocalDate();
+    LocalDate targetDate = LocalDate.now().minusDays(1);
 
     private String getPythonPath() {
         return "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3";
@@ -84,8 +83,8 @@ public class HottracksPythonScriptExecutor {
         }
 
 
-        String startDate = targetDate.toString();
-        String endDate = targetDate.toString();
+        String startDate = getTargetDate().toString();
+        String endDate = getTargetDate().toString();
         ProcessBuilder processBuilder = new ProcessBuilder(
                 pythonPath, tempScriptFile1.getAbsolutePath(),
                 loginUrl, targetUrl, username, password, startDate, endDate
@@ -110,7 +109,7 @@ public class HottracksPythonScriptExecutor {
 
         parseAndSaveData(String.valueOf(output));
 
-        System.out.println("핫트랙스 시간 = " + targetDate);
+        System.out.println("핫트랙스 시간 = " + getTargetDate());
         System.out.println("user.timezone: " + System.getProperty("user.timezone"));
         System.out.println("현재 LocalDate = " + LocalDate.now());
         System.out.println("현재 LocalDate - 1일 = " + LocalDate.now().minusDays(1));
@@ -173,7 +172,7 @@ public class HottracksPythonScriptExecutor {
                     }
 
                     SalesRecord existingRecord = salesRecordRepository.findTopBySalesLocationAndProductAndSalesDate(
-                            salesLocation, product, targetDate
+                            salesLocation, product, getTargetDate()
                     );
 
 
@@ -181,7 +180,7 @@ public class HottracksPythonScriptExecutor {
                         SalesRecord newRecord = SalesRecord.builder()
                                 .salesLocation(salesLocation)
                                 .product(product)
-                                .salesDate(targetDate)
+                                .salesDate(getTargetDate())
                                 .quantity(quantity)
                                 .salesAmount(salesAmount)
                                 .actualSales(actualSales)
@@ -206,5 +205,8 @@ public class HottracksPythonScriptExecutor {
             return null;
 
         }
+    }
+    public LocalDate getTargetDate() {
+        return LocalDate.now().minusDays(1);
     }
 }
