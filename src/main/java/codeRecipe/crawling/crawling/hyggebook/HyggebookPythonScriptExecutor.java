@@ -1,7 +1,6 @@
-package codeRecipe.crawling.crawling.libro;
+package codeRecipe.crawling.crawling.hyggebook;
 
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import codeRecipe.crawling.crawling.domain.Product;
 import codeRecipe.crawling.crawling.domain.SalesLocation;
 import codeRecipe.crawling.crawling.domain.SalesRecord;
@@ -20,7 +19,6 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.io.*;
 import java.time.LocalDate;
@@ -35,15 +33,15 @@ import java.util.List;
 //@Builder
 @Component
 @Slf4j
-public class LibroPythonScriptExecutor {
+public class HyggebookPythonScriptExecutor {
 
-    @Value("${app.login.libro-url}")
+    @Value("${app.login.hygge-url}")
     private String loginUrl;
 
-    @Value("${app.login.libro-username}")
+    @Value("${app.login.hygge-username}")
     private String username;
 
-    @Value("${app.login.libro-password}")
+    @Value("${app.login.hygge-password}")
     private String password;
 
 
@@ -52,11 +50,13 @@ public class LibroPythonScriptExecutor {
     private final SalesRecordRepository salesRecordRepository;
     private final SalesLocationRepository salesLocationRepository;
 
+    private static final Logger logger = LoggerFactory.getLogger(HyggebookPythonScriptExecutor.class);
+    ZonedDateTime nowInSeoul = ZonedDateTime.now(ZoneId.of("Asia/Seoul"));
     LocalDate targetDate = LocalDate.now().minusDays(1);
-    private static final Logger logger = LoggerFactory.getLogger(LibroPythonScriptExecutor.class);
 
-//    String[] LibroRegion = {"수원점", "상봉점", "시흥점", "기흥점", "원주점", "분당수내점", "구로점(NC)", "광명점", "광양점"};
-    String locationName = "Libro";
+
+
+    String locationName = "Hyggebook";
 
 
     private String getPythonPath() {
@@ -64,13 +64,14 @@ public class LibroPythonScriptExecutor {
     }
 
     public String getScriptPath() throws IOException {
-        Resource resource = resourceLoader.getResource("classpath:scripts/LibroCrawler.py");
+        Resource resource = resourceLoader.getResource("classpath:scripts/HyggebookCrawler.py");
         return resource.getFile().getAbsolutePath(); // 실제 파일 경로 반환
     }
 
     public String excutePythonScript() throws Exception {
+
         String pythonPath = new File("venv/bin/python3").getAbsolutePath();
-        String scriptName = "LibroCrawler.py";
+        String scriptName = "HyggebookCrawler.py";
 
         // JAR 내부 스크립트를 임시 파일로 추출
         ClassPathResource resource = new ClassPathResource("scripts/" + scriptName);
@@ -86,10 +87,14 @@ public class LibroPythonScriptExecutor {
 
         String startDate = getTargetDate().toString();
         String endDate = getTargetDate().toString();
+
         ProcessBuilder processBuilder = new ProcessBuilder(
                 pythonPath, tempScriptFile.getAbsolutePath(),
-                loginUrl, username, password,startDate,endDate
+                loginUrl, username, password, startDate, endDate
         );
+
+
+
         processBuilder.redirectErrorStream(true);
         Process process = processBuilder.start();
 
@@ -120,14 +125,14 @@ public class LibroPythonScriptExecutor {
         for (JsonNode locationNode : rootNode.get("locations")) {
             locations.add(locationNode.asText());
         }
+
         findNewLocations(locations);
 
-        String[] LibroRegion =  new String[locations.size()/2];
+        String[] HyggebookRegion =  new String[locations.size()/2];
         for (int i = 0, j = 0; i < locations.size(); i += 2, j++) {
-            LibroRegion[j] = locations.get(i); // 배열의 j번째 인덱스에 값 추가
+            HyggebookRegion[j] = locations.get(i); // 배열의 j번째 인덱스에 값 추가
         }
 
-        // data 필드 추출
         List<List<String>> parsedData = new ArrayList<>();
         for (JsonNode arrayNode : rootNode.get("data")) {
             List<String> row = new ArrayList<>();
@@ -136,14 +141,14 @@ public class LibroPythonScriptExecutor {
             }
             parsedData.add(row);
         }
+//        saveSalesLocations();
+        parseAndSaveData(parsedData, HyggebookRegion);
 
-
-        parseAndSaveData(parsedData, LibroRegion);
-
-        System.out.println("리브로 시간 = " + getTargetDate());
+        System.out.println("아크앤 북 시간 (메서드로 호출) = " + getTargetDate());
         System.out.println("user.timezone: " + System.getProperty("user.timezone"));
         System.out.println("현재 LocalDate = " + LocalDate.now());
         System.out.println("현재 LocalDate - 1일 = " + LocalDate.now().minusDays(1));
+
 
         return rawData;
     }
@@ -162,8 +167,8 @@ public class LibroPythonScriptExecutor {
         }
     }
 
-    @Transactional
-    public void parseAndSaveData(List<List<String>> jsonData,String[] LibroRegion) throws Exception {
+
+    public void parseAndSaveData(List<List<String>> jsonData,String[] HyggebookRegion) throws Exception {
 
 
         for (List<String> row : jsonData) {
@@ -172,8 +177,10 @@ public class LibroPythonScriptExecutor {
                 String productCode = row.get(0);
                 String productName = row.get(1);
                 String publisher = row.get(2);
+//                Long salesPrice = Long.valueOf(row.get(3).replace(",","").trim());
+//                Long quantity = Long.valueOf(row.get(5).replace(",", "").trim());
+//                Long salesAmount = Long.valueOf(row.get(6).replace(",","").trim());
                 Long salesPrice = parseLongSafe(row.get(3));
-
 
                 Product product = productRepository.findByProductCode(productCode);
                 if (product == null) {
@@ -210,13 +217,14 @@ public class LibroPythonScriptExecutor {
                     }
 
                     int regionIndex = (i - 7) / 2;
-                    if (regionIndex >= LibroRegion.length) break;
-                    String regionName = LibroRegion[regionIndex];
+                    if (regionIndex >= HyggebookRegion.length) break;
+                    String regionName = HyggebookRegion[regionIndex];
 
-                    SalesLocation salesLocation = salesLocationRepository.findByLocationNameAndRegion("Libro", regionName)
+
+                    SalesLocation salesLocation = salesLocationRepository.findByLocationNameAndRegion("Hyggebook", regionName)
                             .orElseGet(() -> salesLocationRepository.save(
                                     SalesLocation.builder()
-                                            .locationName("Libro")
+                                            .locationName("Hyggebook")
                                             .region(regionName)
                                             .build()
                             ));
@@ -232,7 +240,6 @@ public class LibroPythonScriptExecutor {
                         continue;
                     }
 
-                    // 새로운 데이터 저장
                     SalesRecord newRecord = SalesRecord.builder()
                             .salesLocation(salesLocation)
                             .product(product)
@@ -251,6 +258,7 @@ public class LibroPythonScriptExecutor {
     }
 
 
+
     private Long parseLongSafe(String value) {
         try {
             return Long.valueOf(value.replace(",", "").trim());
@@ -265,7 +273,6 @@ public class LibroPythonScriptExecutor {
 //        return LocalDate.now().minusDays(1);
         return targetDate;
     }
-
     public void setTargetDate(LocalDate targetDate) {
         this.targetDate = targetDate; // targetDate를 원하는 날짜로 변경
     }

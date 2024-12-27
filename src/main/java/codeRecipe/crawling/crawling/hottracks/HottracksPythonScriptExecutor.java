@@ -201,6 +201,11 @@ public class HottracksPythonScriptExecutor {
     }
 
     public LocalDate getTargetDate() {
-        return LocalDate.now().minusDays(1);
+//        return LocalDate.now().minusDays(1);
+        return targetDate;
+    }
+
+    public void setTargetDate(LocalDate targetDate) {
+        this.targetDate = targetDate; // targetDate를 원하는 날짜로 변경
     }
 }

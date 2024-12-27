@@ -42,5 +42,6 @@ application-database.yml
 application-hottracks.yml
 application-libro.yml
 application-slack-webhook.yml
+application-hyggebook.yml
 
 .DS_Store

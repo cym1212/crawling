@@ -87,9 +87,12 @@ public class ArcnbookPythonScriptExecutor {
             }
         }
 
+        String startDate = getTargetDate().toString();
+        String endDate = getTargetDate().toString();
+
         ProcessBuilder processBuilder = new ProcessBuilder(
                 pythonPath, tempScriptFile.getAbsolutePath(),
-                loginUrl, username, password
+                loginUrl, username, password, startDate, endDate
         );
 
 
@@ -269,6 +272,11 @@ public class ArcnbookPythonScriptExecutor {
     }
 
     public LocalDate getTargetDate() {
-        return LocalDate.now().minusDays(1);
+//        return LocalDate.now().minusDays(1);
+        return targetDate;
+    }
+
+    public void setTargetDate(LocalDate targetDate) {
+        this.targetDate = targetDate; // targetDate를 원하는 날짜로 변경
     }
 }
