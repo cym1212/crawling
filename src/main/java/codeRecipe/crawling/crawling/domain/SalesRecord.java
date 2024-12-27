@@ -58,15 +58,26 @@ public class SalesRecord {
 
 
 
-    public boolean isSameSalesRecord(Long quantity, Long salesPrice, Long regionSalesAmount, Long regionSalesQuantity, Long salesAmount) {
-        return this.quantity.equals(quantity) &&
-                ((this.salesPrice == null && salesPrice == null) ||
-                        (this.salesPrice != null && this.salesPrice.equals(salesPrice))) &&
-                ((this.regionSalesAmount == null && regionSalesAmount == null) ||
-                        (this.regionSalesAmount != null && this.regionSalesAmount.equals(regionSalesAmount))) &&
-                ((this.regionSalesQuantity == null && regionSalesQuantity == null) ||
-                        (this.regionSalesQuantity != null && this.regionSalesQuantity.equals(regionSalesQuantity))) &&
-                ((this.salesAmount == null && salesAmount == null) ||
-                        (this.salesAmount != null && this.salesAmount.equals(salesAmount)));
-    }
+//    public boolean isSameSalesRecord(Long quantity, Long salesPrice, Long regionSalesAmount, Long regionSalesQuantity, Long salesAmount) {
+//        return this.quantity.equals(quantity) &&
+//                ((this.salesPrice == null && salesPrice == null) ||
+//                        (this.salesPrice != null && this.salesPrice.equals(salesPrice))) &&
+//                ((this.regionSalesAmount == null && regionSalesAmount == null) ||
+//                        (this.regionSalesAmount != null && this.regionSalesAmount.equals(regionSalesAmount))) &&
+//                ((this.regionSalesQuantity == null && regionSalesQuantity == null) ||
+//                        (this.regionSalesQuantity != null && this.regionSalesQuantity.equals(regionSalesQuantity))) &&
+//                ((this.salesAmount == null && salesAmount == null) ||
+//                        (this.salesAmount != null && this.salesAmount.equals(salesAmount)));
+//    }
+public boolean isSameSalesRecord(Long quantity, Long salesPrice, Long salesAmount,
+                                 String productCode, LocalDate salesDate, String regionName) {
+    return this.quantity.equals(quantity) &&
+            ((this.salesPrice == null && salesPrice == null) ||
+                    (this.salesPrice != null && this.salesPrice.equals(salesPrice))) &&
+            ((this.salesAmount == null && salesAmount == null) ||
+                    (this.salesAmount != null && this.salesAmount.equals(salesAmount))) &&
+            this.product.getProductCode().equals(productCode) &&
+            this.salesDate.equals(salesDate) &&
+            this.salesLocation.getRegion().equals(regionName);
+}
 }

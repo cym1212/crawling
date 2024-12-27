@@ -88,7 +88,7 @@ def selenium_login_and_scrape_by_branch(login_url, target_url, username, passwor
         driver.execute_script("document.getElementById('srchDateT').value = arguments[0];", end_date)
 
         location_data = []
-        location_options = ["수유점", "건대스타시티점", "합정점", "송도점"]  # 지점명 리스트
+        location_options = ["수유점", "건대스타시티점", "합정점", "송도점","동대문점"]  # 지점명 리스트
 
         for location in location_options:
             try:

@@ -22,9 +22,9 @@ public class SlackWebhookService {
     private String webhookUrl;
 
 
-    public void sendMessageToSlack(){
+    public void sendMessageToSlack() {
         HttpHeaders headers = new org.springframework.http.HttpHeaders();
-        headers.set("Content-Type","application/json");
+        headers.set("Content-Type", "application/json");
 
 
         String message = dataProcessingService.DataProcessing();

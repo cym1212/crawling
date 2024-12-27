@@ -16,6 +16,10 @@ spring:
   web:
     resources:
       add-mappings: false
+  task:
+    scheduling:
+      pool:
+        size: 1
 geoip2:
   database:
     path: GeoLite2-Country.mmdb
@@ -32,8 +36,7 @@ logging:
     org.springframework.scheduling: DEBUG
     org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor: TRACE
     codeRecipe.crawling.crawling: DEBUG
-  file:
-    name: app.log
+
 
 server:
   port: 8081

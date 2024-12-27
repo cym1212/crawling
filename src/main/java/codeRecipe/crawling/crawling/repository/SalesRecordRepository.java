@@ -31,17 +31,30 @@ public interface SalesRecordRepository extends JpaRepository<SalesRecord, Long> 
             "WHERE sr.salesDate = :salesDate")
     Object[] getTotalQuantityAndSalesAmountByDate(@Param("salesDate") LocalDate salesDate);
 
-    @Query("SELECT p.productName, p.productCode, COUNT(sr.product.productId), SUM(sr.salesAmount) " +
+//    @Query("SELECT p.productName, p.productCode, COUNT(sr.product.productId), SUM(sr.salesAmount) " +
+//            "FROM SalesRecord sr " +
+//            "JOIN sr.product p " +
+//            "WHERE sr.salesDate = :salesDate " +
+//            "GROUP BY p.productName, p.productCode"+
+//            "ORDER BY COUNT(sr.product.productId) DESC" )
+//    List<Object[]> findSalesSummaryByDate(@Param("salesDate") LocalDate salesDate);
+
+    @Query("SELECT p.productName, p.productCode, sr.quantity, SUM(sr.salesAmount) " +
             "FROM SalesRecord sr " +
             "JOIN sr.product p " +
             "WHERE sr.salesDate = :salesDate " +
-            "GROUP BY p.productName, p.productCode")
+            "GROUP BY p.productName, p.productCode " +
+            "ORDER BY sr.quantity DESC")
     List<Object[]> findSalesSummaryByDate(@Param("salesDate") LocalDate salesDate);
 
     @Query("SELECT sl.locationName, sl.region, COUNT(sr.quantity), SUM(sr.salesAmount) " +
             "FROM SalesRecord sr " +
             "JOIN sr.salesLocation sl " +
             "WHERE sr.salesDate = :salesDate " +
-            "GROUP BY sl.locationName, sl.region")
+            "GROUP BY sl.locationName, sl.region " +
+            "ORDER BY COUNT(sr.quantity) DESC")
     List<Object[]> findSalesSummaryByLocationAndDate(@Param("salesDate") LocalDate salesDate);
+
+
+    SalesRecord findByProductAndSalesDateAndSalesLocation(Product product, LocalDate salesDate, SalesLocation salesLocation);
 }

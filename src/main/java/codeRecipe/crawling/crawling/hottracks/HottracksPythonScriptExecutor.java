@@ -120,9 +120,6 @@ public class HottracksPythonScriptExecutor {
         ObjectMapper objectMapper = new ObjectMapper();
         JsonNode rootNode = objectMapper.readTree(jsonData);
 
-//        List<SalesLocation> salesLocations = new ArrayList<>();
-//        List<Product> products = new ArrayList<>();
-//        List<SalesRecord> salesRecords = new ArrayList<>();
 
         for (JsonNode locationNode : rootNode) {
             String locationName = locationNode.get("location").asText();
@@ -133,11 +130,7 @@ public class HottracksPythonScriptExecutor {
                         .build();
                 return salesLocationRepository.save(newLocation);
             });
-//            SalesLocation salesLocation = SalesLocation.builder()
-//                    .locationName("hottracks")
-//                    .region(locationName)
-//                    .build();
-//            salesLocations.add(salesLocation);
+
 
             JsonNode rows = locationNode.get("data").get("rows");
             if (rows.size() > 0 && !"매출내역이 없습니다.".equals(rows.get(0).get(0).asText())) {
@@ -153,11 +146,6 @@ public class HottracksPythonScriptExecutor {
                     Long actualSales = parseLongSafe(row.get(5).asText());
                     Long salesCost = parseLongSafe(row.get(6).asText());
                     Product product = productRepository.findByProductCode(productCode);
-//                    Product product = Product.builder()
-//                            .productCode(productCode)
-//                            .productName(productName)
-//                            .build();
-//                    products.add(product);
                     if (product == null) {
                         product = Product.builder()
                                 .productCode(productCode)
@@ -171,30 +159,35 @@ public class HottracksPythonScriptExecutor {
                         productRepository.save(product);
                     }
 
-                    SalesRecord existingRecord = salesRecordRepository.findTopBySalesLocationAndProductAndSalesDate(
-                            salesLocation, product, getTargetDate()
+
+                    SalesRecord existingRecord = salesRecordRepository.findByProductAndSalesDateAndSalesLocation(
+                            product, getTargetDate(), salesLocation
                     );
 
 
-                    if (existingRecord == null || !existingRecord.isSameSalesRecord(quantity, null, null, null, salesAmount)) {
-                        SalesRecord newRecord = SalesRecord.builder()
-                                .salesLocation(salesLocation)
-                                .product(product)
-                                .salesDate(getTargetDate())
-                                .quantity(quantity)
-                                .salesAmount(salesAmount)
-                                .actualSales(actualSales)
-                                .salesCost(salesCost)
-                                .createdAt(LocalDate.now())
-                                .build();
-                        salesRecordRepository.save(newRecord);
+                    if (existingRecord != null) {
+                        log.info("Duplicate record found for product: {}, location: {}, date: {}. Skipping save.",
+                                productCode, locationName, getTargetDate());
+                        continue;
                     }
+
+
+                    SalesRecord newRecord = SalesRecord.builder()
+                            .salesLocation(salesLocation)
+                            .product(product)
+                            .salesDate(getTargetDate())
+                            .quantity(quantity)
+                            .salesAmount(salesAmount)
+                            .actualSales(actualSales)
+                            .salesCost(salesCost)
+                            .createdAt(LocalDate.now())
+                            .build();
+                    salesRecordRepository.save(newRecord);
+
                 }
             }
         }
-//        productRepository.saveAll(products);
-//        salesLocationRepository.saveAll(salesLocations);
-//        salesRecordRepository.saveAll(salesRecords);
+
     }
 
     private Long parseLongSafe(String value) {
@@ -206,6 +199,7 @@ public class HottracksPythonScriptExecutor {
 
         }
     }
+
     public LocalDate getTargetDate() {
         return LocalDate.now().minusDays(1);
     }

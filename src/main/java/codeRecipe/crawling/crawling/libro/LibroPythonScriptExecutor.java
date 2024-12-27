@@ -20,6 +20,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.*;
 import java.time.LocalDate;
@@ -54,18 +55,19 @@ public class LibroPythonScriptExecutor {
     LocalDate targetDate = LocalDate.now().minusDays(1);
     private static final Logger logger = LoggerFactory.getLogger(LibroPythonScriptExecutor.class);
 
-    String[] LibroRegion = {"수원점","상봉점","시흥점","기흥점","원주점","분당수내점","구로점(NC)","광명점","광양점"};
+    String[] LibroRegion = {"수원점", "상봉점", "시흥점", "기흥점", "원주점", "분당수내점", "구로점(NC)", "광명점", "광양점"};
     String locationName = "Libro";
-
 
 
     private String getPythonPath() {
         return "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3";
     }
+
     public String getScriptPath() throws IOException {
         Resource resource = resourceLoader.getResource("classpath:scripts/LibroCrawler.py");
         return resource.getFile().getAbsolutePath(); // 실제 파일 경로 반환
     }
+
     public String excutePythonScript() throws Exception {
         String pythonPath = new File("venv/bin/python3").getAbsolutePath();
         String scriptName = "LibroCrawler.py";
@@ -132,20 +134,17 @@ public class LibroPythonScriptExecutor {
         return rawData;
     }
 
-
+    @Transactional
     public void parseAndSaveData(List<List<String>> jsonData) throws Exception {
 
 
+        for (List<String> row : jsonData) {
 
-        for(List<String> row : jsonData) {
-
-            if(row.size() >1){
+            if (row.size() > 1) {
                 String productCode = row.get(0);
                 String productName = row.get(1);
                 String publisher = row.get(2);
                 Long salesPrice = parseLongSafe(row.get(3));
-                Long quantity = parseLongSafe(row.get(5));
-                Long salesAmount = parseLongSafe(row.get(6));
 
 
                 Product product = productRepository.findByProductCode(productCode);
@@ -156,7 +155,7 @@ public class LibroPythonScriptExecutor {
                             .publisher(publisher)
                             .build();
                     product = productRepository.save(product);
-                }  else if (!product.isSameProduct(productName, publisher)) {
+                } else if (!product.isSameProduct(productName, publisher)) {
                     product = product.toBuilder()
                             .productName(productName)
                             .publisher(publisher)
@@ -165,7 +164,7 @@ public class LibroPythonScriptExecutor {
                 }
 
 
-                for (int i = 7; i +1 < row.size(); i += 2) {
+                for (int i = 7; i + 1 < row.size(); i += 2) {
                     String regionQuantityStr = row.get(i).replace(",", "").trim();
                     String regionSalesAmountStr = row.get(i + 1).replace(",", "").trim();
 
@@ -187,42 +186,44 @@ public class LibroPythonScriptExecutor {
                     String regionName = LibroRegion[regionIndex];
 
                     SalesLocation salesLocation = salesLocationRepository.findByLocationNameAndRegion("Libro", regionName)
-                            .orElse(null);
+                            .orElseGet(() -> salesLocationRepository.save(
+                                    SalesLocation.builder()
+                                            .locationName("Libro")
+                                            .region(regionName)
+                                            .build()
+                            ));
 
-
-                    if (!salesLocation.isSameLocation(locationName, regionName)) {
-                        // 기존 레코드 업데이트 또는 새로운 레코드 생성
-                        salesLocation = salesLocation.toBuilder()
-                                .locationName(locationName)
-                                .region(regionName)
-                                .build();
-                        salesLocation = salesLocationRepository.save(salesLocation);
-                    }
-                    SalesRecord existingRecord = salesRecordRepository.findTopBySalesLocationAndProductAndSalesDate(
-                            salesLocation, product, getTargetDate()
+                    SalesRecord existingRecord = salesRecordRepository.findByProductAndSalesDateAndSalesLocation(
+                            product, getTargetDate(), salesLocation
                     );
 
-                    if (existingRecord == null || !existingRecord.isSameSalesRecord(quantity, salesPrice, regionSalesAmount, regionQuantity, salesAmount)) {
-                        SalesRecord salesRecord = SalesRecord.builder()
-                                .salesLocation(salesLocation)
-                                .product(product)
-                                .salesPrice(salesPrice)
-                                .salesDate(getTargetDate())
-                                .quantity(quantity)
-                                .regionSalesAmount(regionSalesAmount)
-                                .regionSalesQuantity(regionQuantity)
-                                .salesAmount(salesAmount)
-                                .createdAt(LocalDate.now())
-                                .build();
 
-                        salesRecordRepository.save(salesRecord);
+                    if (existingRecord != null) {
+                        log.info("Duplicate record found for product: {}, location: {}, date: {}. Skipping save.",
+                                productCode, regionName, getTargetDate());
+                        continue;
                     }
+
+                    // 새로운 데이터 저장
+                    SalesRecord newRecord = SalesRecord.builder()
+                            .salesLocation(salesLocation)
+                            .product(product)
+                            .salesPrice(salesPrice)
+                            .salesDate(getTargetDate())
+                            .quantity(regionQuantity)
+                            .salesAmount(regionSalesAmount)
+                            .createdAt(LocalDate.now())
+                            .build();
+
+                    salesRecordRepository.save(newRecord);
+
                 }
             }
         }
     }
-    private void saveSalesLocations(){
-        for(String region : LibroRegion){
+
+    private void saveSalesLocations() {
+        for (String region : LibroRegion) {
             boolean exists = salesLocationRepository.existsByLocationNameAndRegion(locationName, region);
             if (!exists) {
                 SalesLocation location = SalesLocation.builder()
@@ -244,6 +245,7 @@ public class LibroPythonScriptExecutor {
 
         }
     }
+
     public LocalDate getTargetDate() {
         return LocalDate.now().minusDays(1);
     }

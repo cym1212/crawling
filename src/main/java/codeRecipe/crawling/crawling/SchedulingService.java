@@ -164,7 +164,7 @@ public class SchedulingService {
 //    }
 
 
-    @Scheduled(cron = "0 0 11 * * *", zone = "Asia/Seoul")
+    @Scheduled(cron = "0 0 10 * * *", zone = "Asia/Seoul")
     public void sendMessageToSlack() {
         log.info("Task started on thread: {}, at: {}", Thread.currentThread().getName(), LocalDateTime.now());
         synchronized (this) {
@@ -176,6 +176,18 @@ public class SchedulingService {
             }
         }
     }
+//    @Scheduled(cron = "0 22 14 * * *", zone = "Asia/Seoul")
+//    public void sendMessageToSlack1() {
+//        log.info("Task started on thread: {}, at: {}", Thread.currentThread().getName(), LocalDateTime.now());
+//        synchronized (this) {
+//            try {
+//                slackWebhookService.sendMessageToSlack();
+//                log.info("Task completed on thread: {}, at: {}", Thread.currentThread().getName(), LocalDateTime.now());
+//            } catch (Exception e) {
+//                log.error("Error occurred while sending message to Slack: {}", e.getMessage(), e);
+//            }
+//        }
+//    }
 
 
 }

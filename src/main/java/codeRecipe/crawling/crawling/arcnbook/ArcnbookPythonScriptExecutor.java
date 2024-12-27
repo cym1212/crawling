@@ -4,11 +4,9 @@ package codeRecipe.crawling.crawling.arcnbook;
 import codeRecipe.crawling.crawling.domain.Product;
 import codeRecipe.crawling.crawling.domain.SalesLocation;
 import codeRecipe.crawling.crawling.domain.SalesRecord;
-import codeRecipe.crawling.crawling.libro.LibroPythonScriptExecutor;
 import codeRecipe.crawling.crawling.repository.ProductRepository;
 import codeRecipe.crawling.crawling.repository.SalesLocationRepository;
 import codeRecipe.crawling.crawling.repository.SalesRecordRepository;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
@@ -58,8 +56,6 @@ public class ArcnbookPythonScriptExecutor {
     ZonedDateTime nowInSeoul = ZonedDateTime.now(ZoneId.of("Asia/Seoul"));
     LocalDate targetDate = LocalDate.now().minusDays(1);
 
-//    ZonedDateTime mockNowInSeoul = ZonedDateTime.of(2024, 12, 18, 1, 0, 0, 0, ZoneId.of("Asia/Seoul"));
-//    LocalDate targetDate = mockNowInSeoul.minusDays(1).toLocalDate();
 
     String[] ArcnbookRegion = {"수지점", "신촌점", "롯데월드몰점", "동탄호수점", "월계점", "부산아시아드점", "몬드리안점", "광안리점", "아크앤북온라인", "충청점", "부산명지점", "세종점"};
     String locationName = "Arcnbook";
@@ -139,26 +135,6 @@ public class ArcnbookPythonScriptExecutor {
         System.out.println("현재 LocalDate = " + LocalDate.now());
         System.out.println("현재 LocalDate - 1일 = " + LocalDate.now().minusDays(1));
 
-        System.out.println("Scheduled Time (Seoul): {}" + nowInSeoul);
-        System.out.println("Calculated Target Date(클래스 단 호출): {}" + targetDate);
-        System.out.println("System Default Time Zone: {}" + TimeZone.getDefault().getID());
-        System.out.println("System Default ZoneId: {}" + ZoneId.systemDefault());
-        System.out.println("LocalDate.now(): {}" + LocalDate.now());
-        System.out.println("LocalDate.now(ZoneId.of('Asia/Seoul')): {}" + LocalDate.now(ZoneId.of("Asia/Seoul")));
-        TimeZone defaultTimeZone = TimeZone.getDefault();
-        System.out.println("JVM Default Time Zone: " + defaultTimeZone.getID());
-
-        // 시스템 시간대
-        ZoneId systemZoneId = ZoneId.systemDefault();
-        System.out.println("JVM System ZoneId: " + systemZoneId);
-
-        // 현재 JVM 시간을 LocalDateTime으로 출력
-        LocalDateTime currentLocalDateTime = LocalDateTime.now();
-        System.out.println("JVM Current LocalDateTime: " + currentLocalDateTime);
-
-        // 현재 JVM 시간을 ZonedDateTime으로 출력
-        ZonedDateTime currentZonedDateTime = ZonedDateTime.now();
-        System.out.println("JVM Current ZonedDateTime: " + currentZonedDateTime);
 
         return rawData;
     }
@@ -177,8 +153,6 @@ public class ArcnbookPythonScriptExecutor {
 //                Long quantity = Long.valueOf(row.get(5).replace(",", "").trim());
 //                Long salesAmount = Long.valueOf(row.get(6).replace(",","").trim());
                 Long salesPrice = parseLongSafe(row.get(3));
-                Long quantity = parseLongSafe(row.get(5));
-                Long salesAmount = parseLongSafe(row.get(6));
 
                 Product product = productRepository.findByProductCode(productCode);
                 if (product == null) {
@@ -218,36 +192,38 @@ public class ArcnbookPythonScriptExecutor {
                     if (regionIndex >= ArcnbookRegion.length) break;
                     String regionName = ArcnbookRegion[regionIndex];
 
-                    SalesLocation salesLocation = salesLocationRepository.findByLocationNameAndRegion("Arcnbook", regionName)
-                            .orElse(null);
 
-                    if (!salesLocation.isSameLocation(locationName, regionName)) {
-                        // 기존 레코드 업데이트 또는 새로운 레코드 생성
-                        salesLocation = salesLocation.toBuilder()
-                                .locationName(locationName)
-                                .region(regionName)
-                                .build();
-                        salesLocation = salesLocationRepository.save(salesLocation);
-                    }
-                    SalesRecord existingRecord = salesRecordRepository.findTopBySalesLocationAndProductAndSalesDate(
-                            salesLocation, product, getTargetDate()
+                    SalesLocation salesLocation = salesLocationRepository.findByLocationNameAndRegion("Arcnbook", regionName)
+                            .orElseGet(() -> salesLocationRepository.save(
+                                    SalesLocation.builder()
+                                            .locationName("Arcnbook")
+                                            .region(regionName)
+                                            .build()
+                            ));
+
+                    SalesRecord existingRecord = salesRecordRepository.findByProductAndSalesDateAndSalesLocation(
+                            product, getTargetDate(), salesLocation
                     );
 
-                    if (existingRecord == null || !existingRecord.isSameSalesRecord(quantity, salesPrice, regionSalesAmount, regionQuantity, salesAmount)) {
-                        SalesRecord newRecord = SalesRecord.builder()
-                                .salesLocation(salesLocation)
-                                .product(product)
-                                .salesPrice(salesPrice)
-                                .salesDate(getTargetDate())
-                                .quantity(quantity)
-                                .regionSalesAmount(regionSalesAmount)
-                                .regionSalesQuantity(regionQuantity)
-                                .salesAmount(salesAmount)
-                                .createdAt(LocalDate.now())
-                                .build();
 
-                        salesRecordRepository.save(newRecord);
+                    if (existingRecord != null) {
+                        log.info("Duplicate record found for product: {}, location: {}, date: {}. Skipping save.",
+                                productCode, regionName, getTargetDate());
+                        continue;
                     }
+
+                    SalesRecord newRecord = SalesRecord.builder()
+                            .salesLocation(salesLocation)
+                            .product(product)
+                            .salesPrice(salesPrice)
+                            .salesDate(getTargetDate())
+                            .quantity(regionQuantity)
+                            .salesAmount(regionSalesAmount)
+                            .createdAt(LocalDate.now())
+                            .build();
+
+                    salesRecordRepository.save(newRecord);
+
                 }
             }
         }
@@ -276,6 +252,7 @@ public class ArcnbookPythonScriptExecutor {
 
         }
     }
+
     public LocalDate getTargetDate() {
         return LocalDate.now().minusDays(1);
     }
