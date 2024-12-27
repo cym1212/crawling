@@ -57,7 +57,7 @@ public class ArcnbookPythonScriptExecutor {
     LocalDate targetDate = LocalDate.now().minusDays(1);
 
 
-    String[] ArcnbookRegion = {"수지점", "신촌점", "롯데월드몰점", "동탄호수점", "월계점", "부산아시아드점", "몬드리안점", "광안리점", "아크앤북온라인", "충청점", "부산명지점", "세종점"};
+//    String[] ArcnbookRegion = {"수지점", "신촌점", "롯데월드몰점", "동탄호수점", "월계점", "부산아시아드점", "몬드리안점", "광안리점", "아크앤북온라인", "충청점", "부산명지점", "세종점"};
     String locationName = "Arcnbook";
 
 
@@ -93,6 +93,7 @@ public class ArcnbookPythonScriptExecutor {
         );
 
 
+
         processBuilder.redirectErrorStream(true);
         Process process = processBuilder.start();
 
@@ -119,8 +120,20 @@ public class ArcnbookPythonScriptExecutor {
             throw new RuntimeException("Error parsing JSON response", e);
         }
 
+        List<String> locations = new ArrayList<>();
+        for (JsonNode locationNode : rootNode.get("locations")) {
+            locations.add(locationNode.asText());
+        }
+
+        findNewLocations(locations);
+
+        String[] ArcnbookRegion =  new String[locations.size()/2];
+        for (int i = 0, j = 0; i < locations.size(); i += 2, j++) {
+            ArcnbookRegion[j] = locations.get(i); // 배열의 j번째 인덱스에 값 추가
+        }
+
         List<List<String>> parsedData = new ArrayList<>();
-        for (JsonNode arrayNode : rootNode) {
+        for (JsonNode arrayNode : rootNode.get("data")) {
             List<String> row = new ArrayList<>();
             for (JsonNode item : arrayNode) {
                 row.add(item.asText());
@@ -128,7 +141,7 @@ public class ArcnbookPythonScriptExecutor {
             parsedData.add(row);
         }
 //        saveSalesLocations();
-        parseAndSaveData(parsedData);
+        parseAndSaveData(parsedData, ArcnbookRegion);
 
         System.out.println("아크앤 북 시간 (메서드로 호출) = " + getTargetDate());
         System.out.println("user.timezone: " + System.getProperty("user.timezone"));
@@ -139,8 +152,22 @@ public class ArcnbookPythonScriptExecutor {
         return rawData;
     }
 
+    private void findNewLocations(List<String> locations) {
+        for (String region : locations) {
+            boolean exists = salesLocationRepository.existsByLocationNameAndRegion(locationName, region);
+            if (!exists) {
+                SalesLocation location = SalesLocation.builder()
+                        .locationName(locationName)
+                        .region(region) // 지역 이름
+                        .build();
 
-    public void parseAndSaveData(List<List<String>> jsonData) throws Exception {
+                salesLocationRepository.save(location);
+            }
+        }
+    }
+
+
+    public void parseAndSaveData(List<List<String>> jsonData,String[] ArcnbookRegion) throws Exception {
 
 
         for (List<String> row : jsonData) {
@@ -229,19 +256,7 @@ public class ArcnbookPythonScriptExecutor {
         }
     }
 
-    private void saveSalesLocations() {
-        for (String region : ArcnbookRegion) {
-            boolean exists = salesLocationRepository.existsByLocationNameAndRegion(locationName, region);
-            if (!exists) {
-                SalesLocation location = SalesLocation.builder()
-                        .locationName(locationName)
-                        .region(region) // 지역 이름
-                        .build();
 
-                salesLocationRepository.save(location);
-            }
-        }
-    }
 
     private Long parseLongSafe(String value) {
         try {

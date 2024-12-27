@@ -122,18 +122,18 @@ public class HottracksPythonScriptExecutor {
 
 
         for (JsonNode locationNode : rootNode) {
-            String locationName = locationNode.get("location").asText();
-            SalesLocation salesLocation = salesLocationRepository.findByLocationNameAndRegion("Hottracks", locationName).orElseGet(() -> {
-                SalesLocation newLocation = SalesLocation.builder()
-                        .locationName("Hottracks")
-                        .region(locationName)
-                        .build();
-                return salesLocationRepository.save(newLocation);
-            });
-
-
             JsonNode rows = locationNode.get("data").get("rows");
-            if (rows.size() > 0 && !"매출내역이 없습니다.".equals(rows.get(0).get(0).asText())) {
+
+            if (!"매출내역이 없습니다.".equals(rows.get(0).get(0).asText())) {
+                String locationName = locationNode.get("location").asText();
+                SalesLocation salesLocation = salesLocationRepository.findByLocationNameAndRegion("Hottracks", locationName).orElseGet(() -> {
+                    SalesLocation newLocation = SalesLocation.builder()
+                            .locationName("Hottracks")
+                            .region(locationName)
+                            .build();
+                    return salesLocationRepository.save(newLocation);
+                });
+
                 for (JsonNode row : rows) {
                     String productName = row.get(1).asText();
                     String productCode = row.get(2).asText();

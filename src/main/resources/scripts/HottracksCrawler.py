@@ -88,7 +88,16 @@ def selenium_login_and_scrape_by_branch(login_url, target_url, username, passwor
         driver.execute_script("document.getElementById('srchDateT').value = arguments[0];", end_date)
 
         location_data = []
-        location_options = ["수유점", "건대스타시티점", "합정점", "송도점","동대문점","일산점"]  # 지점명 리스트
+        location_options = [
+            "물류", "광화문점", "이화여대점", "강남점", "서울대점", "잠실점", "건대스타시티점", "창원점",
+            "거제디큐브", "목동점", "천안점", "온라인몰", "영등포점", "대구점", "수유점", "부산점",
+            "디큐브시티점", "판교점", "전주점", "동대문점", "울산점", "일산점", "송도점", "대전점",
+            "광교월드스퀘어센터", "반월당점", "센텀시티점", "해운대 팝업스토어", "전북대점", "인천점",
+            "부천점", "은평점", "칠곡점", "세종점", "청량리점", "합정점", "가든파이브", "평촌점",
+            "경성대.부경대센터", "분당점", "광주상무센터", "광교점", "천호점", "카페자우랩",
+            "B2B영업팀", "파주본점", "B2B개발팀(핫트마켓)", "B2B영업팀_B", "본사문구음반",
+            "해외영업", "보관지원센터", "거제디큐브", "대백프라자"
+        ]
 
         for location in location_options:
             try:

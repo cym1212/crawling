@@ -55,7 +55,7 @@ public class LibroPythonScriptExecutor {
     LocalDate targetDate = LocalDate.now().minusDays(1);
     private static final Logger logger = LoggerFactory.getLogger(LibroPythonScriptExecutor.class);
 
-    String[] LibroRegion = {"수원점", "상봉점", "시흥점", "기흥점", "원주점", "분당수내점", "구로점(NC)", "광명점", "광양점"};
+//    String[] LibroRegion = {"수원점", "상봉점", "시흥점", "기흥점", "원주점", "분당수내점", "구로점(NC)", "광명점", "광양점"};
     String locationName = "Libro";
 
 
@@ -114,8 +114,20 @@ public class LibroPythonScriptExecutor {
             throw new RuntimeException("Error parsing JSON response", e);
         }
 
+        List<String> locations = new ArrayList<>();
+        for (JsonNode locationNode : rootNode.get("locations")) {
+            locations.add(locationNode.asText());
+        }
+        findNewLocations(locations);
+
+        String[] LibroRegion =  new String[locations.size()/2];
+        for (int i = 0, j = 0; i < locations.size(); i += 2, j++) {
+            LibroRegion[j] = locations.get(i); // 배열의 j번째 인덱스에 값 추가
+        }
+
+        // data 필드 추출
         List<List<String>> parsedData = new ArrayList<>();
-        for (JsonNode arrayNode : rootNode) {
+        for (JsonNode arrayNode : rootNode.get("data")) {
             List<String> row = new ArrayList<>();
             for (JsonNode item : arrayNode) {
                 row.add(item.asText());
@@ -123,8 +135,17 @@ public class LibroPythonScriptExecutor {
             parsedData.add(row);
         }
 
+//        List<List<String>> parsedData = new ArrayList<>();
+//        for (JsonNode arrayNode : rootNode) {
+//            List<String> row = new ArrayList<>();
+//            for (JsonNode item : arrayNode) {
+//                row.add(item.asText());
+//            }
+//            parsedData.add(row);
+//        }
+
 //        saveSalesLocations();
-        parseAndSaveData(parsedData);
+        parseAndSaveData(parsedData, LibroRegion);
 
         System.out.println("리브로 시간 = " + getTargetDate());
         System.out.println("user.timezone: " + System.getProperty("user.timezone"));
@@ -134,8 +155,22 @@ public class LibroPythonScriptExecutor {
         return rawData;
     }
 
+    private void findNewLocations(List<String> locations) {
+        for (String region : locations) {
+            boolean exists = salesLocationRepository.existsByLocationNameAndRegion(locationName, region);
+            if (!exists) {
+                SalesLocation location = SalesLocation.builder()
+                        .locationName(locationName)
+                        .region(region) // 지역 이름
+                        .build();
+
+                salesLocationRepository.save(location);
+            }
+        }
+    }
+
     @Transactional
-    public void parseAndSaveData(List<List<String>> jsonData) throws Exception {
+    public void parseAndSaveData(List<List<String>> jsonData,String[] LibroRegion) throws Exception {
 
 
         for (List<String> row : jsonData) {
@@ -222,19 +257,6 @@ public class LibroPythonScriptExecutor {
         }
     }
 
-    private void saveSalesLocations() {
-        for (String region : LibroRegion) {
-            boolean exists = salesLocationRepository.existsByLocationNameAndRegion(locationName, region);
-            if (!exists) {
-                SalesLocation location = SalesLocation.builder()
-                        .locationName(locationName)
-                        .region(region) // 지역 이름
-                        .build();
-
-                salesLocationRepository.save(location);
-            }
-        }
-    }
 
     private Long parseLongSafe(String value) {
         try {

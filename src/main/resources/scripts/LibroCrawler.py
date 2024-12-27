@@ -30,10 +30,33 @@ def activate_and_run():
         print(f"Error during execution: {e}")
         sys.exit(1)
 
+def extract_locations_from_html(driver):
+
+    try:
+        headers = driver.find_elements(By.CLASS_NAME, "x-column-header-text-inner")
+
+        # 지점명 추출
+        locations = []
+        for header in headers:
+            text = header.get_attribute("textContent").strip()
+            # 텍스트에 '부수' 또는 '금액'이 포함된 경우만 처리
+            if "(부수)" in text or "(금액)" in text:
+                location_name = text.split("(")[0]  # 괄호 앞의 지점명 추출
+                locations.append(location_name)
+
+        return locations
+
+    except Exception as e:
+        return {
+            "error": "An error occurred while extracting locations",
+            "details": str(e),
+            "traceback": traceback.format_exc(),
+        }
+
 def capture_s_id_from_request_headers(login_url, username, password):
     #로컬에서 실행시 주석 처리 (서버에서 가상화면 띄우는 코드)
-    display = Display(visible=0, size=(1920, 1080))
-    display.start()
+#     display = Display(visible=0, size=(1920, 1080))
+#     display.start()
 
     options = webdriver.ChromeOptions()
 #     options.add_argument('--headless=new')
@@ -129,6 +152,8 @@ def capture_s_id_from_request_headers(login_url, username, password):
             EC.presence_of_all_elements_located((By.CLASS_NAME, "x-grid-item-container"))
         )
 
+        locations = extract_locations_from_html(driver)
+
         for container_index in [2,3]:
             table_rows = []
             tables = containers[container_index].find_elements(By.TAG_NAME,"table")
@@ -150,7 +175,10 @@ def capture_s_id_from_request_headers(login_url, username, password):
             row_2 = table_2[i]
             merged_data.append(row_1 + row_2)
 
-        return merged_data
+        return {
+            "locations": locations,
+            "data": merged_data
+        }
 
 
     except Exception as e:
@@ -163,7 +191,7 @@ def capture_s_id_from_request_headers(login_url, username, password):
     finally:
         driver.quit()
 #         로컬에서 실행시 주석 처리 (서버에서 가상화면 띄우는 코드)
-        display.stop()
+#         display.stop()
 
 
 
