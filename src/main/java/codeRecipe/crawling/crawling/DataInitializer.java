@@ -69,7 +69,7 @@ public class DataInitializer {
         return args -> {
 
             String locationName = "Hottracks";
-            List<String> HottracksRegion = List.of("건대스타시티점", "수유점", "송도점", "합정점","동대문점");
+            List<String> HottracksRegion = List.of("건대스타시티점", "수유점", "송도점", "합정점","동대문점","일산점");
 
             List<String> existingRegions = salesLocationRepository.findAllByLocationNameAndRegionIn(locationName, HottracksRegion)
                     .stream()
