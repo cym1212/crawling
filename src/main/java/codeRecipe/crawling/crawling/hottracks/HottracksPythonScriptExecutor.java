@@ -200,9 +200,10 @@ public class HottracksPythonScriptExecutor {
         }
     }
 
+    // todo 기간별 데이터 수집할때는 수정해야함
     public LocalDate getTargetDate() {
-//        return LocalDate.now().minusDays(1);
-        return targetDate;
+        return LocalDate.now().minusDays(1);
+//        return targetDate;
     }
 
     public void setTargetDate(LocalDate targetDate) {
