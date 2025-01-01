@@ -39,22 +39,45 @@ public interface SalesRecordRepository extends JpaRepository<SalesRecord, Long> 
 //            "ORDER BY COUNT(sr.product.productId) DESC" )
 //    List<Object[]> findSalesSummaryByDate(@Param("salesDate") LocalDate salesDate);
 
-    @Query("SELECT p.productName, p.productCode, sr.quantity, SUM(sr.salesAmount) " +
+    @Query("SELECT p.productName, p.productCode, SUM(sr.quantity), SUM(sr.salesAmount) " +
             "FROM SalesRecord sr " +
             "JOIN sr.product p " +
             "WHERE sr.salesDate = :salesDate " +
             "GROUP BY p.productName, p.productCode " +
-            "ORDER BY sr.quantity DESC")
+            "ORDER BY SUM(sr.quantity) DESC")
     List<Object[]> findSalesSummaryByDate(@Param("salesDate") LocalDate salesDate);
 
-    @Query("SELECT sl.locationName, sl.region, COUNT(sr.quantity), SUM(sr.salesAmount) " +
+    @Query("SELECT sl.locationName, sl.region, SUM(sr.quantity), SUM(sr.salesAmount) " +
             "FROM SalesRecord sr " +
             "JOIN sr.salesLocation sl " +
             "WHERE sr.salesDate = :salesDate " +
             "GROUP BY sl.locationName, sl.region " +
-            "ORDER BY COUNT(sr.quantity) DESC")
+            "ORDER BY SUM(sr.quantity) DESC")
     List<Object[]> findSalesSummaryByLocationAndDate(@Param("salesDate") LocalDate salesDate);
 
 
     SalesRecord findByProductAndSalesDateAndSalesLocation(Product product, LocalDate salesDate, SalesLocation salesLocation);
+
+    @Query("SELECT SUM(s.quantity) FROM SalesRecord s WHERE s.salesDate BETWEEN :startDate AND :endDate")
+    Long getTotalQuantityByDateRange(@Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
+
+    @Query("SELECT SUM(s.salesAmount) FROM SalesRecord s WHERE s.salesDate BETWEEN :startDate AND :endDate")
+    Long getTotalSalesAmountByDateRange(@Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
+
+    @Query("SELECT p.productName, p.productCode, SUM(sr.quantity), SUM(sr.salesAmount) " +
+            "FROM SalesRecord sr " +
+            "JOIN sr.product p " +
+            "WHERE sr.salesDate BETWEEN :startDate AND :endDate " +
+            "GROUP BY p.productName, p.productCode " +
+            "ORDER BY SUM(sr.quantity) DESC")
+    List<Object[]> findSalesSummaryByDateRange(@Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
+
+    @Query("SELECT sl.locationName, sl.region, SUM(sr.quantity), SUM(sr.salesAmount) " +
+            "FROM SalesRecord sr " +
+            "JOIN sr.salesLocation sl " +
+            "WHERE sr.salesDate BETWEEN :startDate AND :endDate " +
+            "GROUP BY sl.locationName, sl.region " +
+            "ORDER BY SUM(sr.quantity) DESC")
+    List<Object[]> findSalesSummaryByLocationAndDateRange(@Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
+
 }
