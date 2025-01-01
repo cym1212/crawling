@@ -11,7 +11,7 @@ import codeRecipe.crawling.crawling.libro.LibroPythonScriptExecutor;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.core.io.ResourceLoader;
-import org.springframework.data.repository.query.Param;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -22,8 +22,8 @@ public class CrawlingController {
 
     //todo
     //  1. ci/cd 코드 손보기
-    //  2. 리브로, 아크앤북 로그인 오류 발생시 재시도하도록 코드 수정
-    //
+    //  2. 데이터 1년치 돌리고 getTargetDate() 원복하기
+
 
 
     private final ResourceLoader resourceLoader;
@@ -61,14 +61,23 @@ public class CrawlingController {
         return hyggebookPythonScriptExecutor.excutePythonScript();
     }
 
-    @PostMapping("/slack")
-    public void sendMessageToSlack() {
-        slackWebhookService.sendMessageToSlack();
+    @PostMapping("/daily/slack")
+    public void sendMessageToSlackDaily() {
+        slackWebhookService.sendMessageToSlackDailyData();
     }
 
-    @PostMapping("test")
-    public String  test(){
-        return dataProcessingService.DataProcessing();
+    @PostMapping("/weekly/slack")
+    public void sendMessageToSlackWeekly() {
+        slackWebhookService.sendMessageToSlackWeeklyData();
+    }
+
+    @GetMapping("/daily/test")
+    public String  dailyTest() throws Exception {
+        return dataProcessingService.dailyDataProcessing();
+    }
+    @GetMapping("/weekly/test")
+    public String  weeklyTest() throws Exception {
+        return dataProcessingService.weeklyDataProcessing();
     }
 
 

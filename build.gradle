@@ -69,6 +69,9 @@ dependencies {
 	//Actuator
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
+	//JSON
+	implementation group: 'org.json', name: 'json', version: '20240303'
+
 }
 
 tasks.named('test') {
