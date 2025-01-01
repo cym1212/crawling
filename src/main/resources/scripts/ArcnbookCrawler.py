@@ -56,13 +56,13 @@ def extract_locations_from_html(driver):
             "traceback": traceback.format_exc(),
         }
 
-def capture_s_id_from_request_headers(login_url, username, password):
+def capture_s_id_from_request_headers(login_url, username, password,start_date,end_date):
     #로컬에서 실행시 주석 처리 (서버에서 가상화면 띄우는 코드)
 #     display = Display(visible=0, size=(1920, 1080))
 #     display.start()
 
     options = webdriver.ChromeOptions()
-#     options.add_argument('--headless=new')
+    options.add_argument('--headless')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-popup-blocking')
@@ -77,16 +77,23 @@ def capture_s_id_from_request_headers(login_url, username, password):
 
         # 로그인 페이지 열기
         driver.get(login_url)
+        time.sleep(1.5)
 
         # 로그인
-        driver.execute_script("document.getElementById('O2F_id-inputEl').value = arguments[0];", '아크앤북')
-        time.sleep(1.5)
-        driver.execute_script("document.getElementById('O13_id-inputEl').value = arguments[0];", username)
-        time.sleep(1.5)
-        driver.execute_script("document.getElementById('O17_id-inputEl').value = arguments[0];", password)
-        time.sleep(1.5)
-#         WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.ID, "O13_id-inputEl"))).send_keys(username)
-#         WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.ID, "O17_id-inputEl"))).send_keys(password)
+        WebDriverWait(driver,20).until(EC.presence_of_element_located((By.ID,"O2F_id-inputEl")))
+
+        driver.execute_script(f"Ext.getCmp('O2F_id').setValue('아크앤북');")
+        driver.execute_script(f"Ext.getCmp('O13_id').setValue('{username}');")
+        driver.execute_script(f"Ext.getCmp('O17_id').setValue('{password}');")
+        driver.execute_script(f"Ext.getCmp('O2F_id').setValue('아크앤북');")
+        driver.execute_script(f"Ext.getCmp('O13_id').setValue('{username}');")
+        driver.execute_script(f"Ext.getCmp('O17_id').setValue('{password}');")
+        driver.execute_script(f"Ext.getCmp('O2F_id').setValue('아크앤북');")
+        driver.execute_script(f"Ext.getCmp('O13_id').setValue('{username}');")
+        driver.execute_script(f"Ext.getCmp('O17_id').setValue('{password}');")
+        driver.execute_script(f"Ext.getCmp('O2F_id').setValue('아크앤북');")
+        driver.execute_script(f"Ext.getCmp('O13_id').setValue('{username}');")
+        driver.execute_script(f"Ext.getCmp('O17_id').setValue('{password}');")
         WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.ID, "O1B_id-btnInnerEl"))).click()
 
         time.sleep(2)
@@ -108,30 +115,11 @@ def capture_s_id_from_request_headers(login_url, username, password):
 
         time.sleep(1)
 
-
-        calendar_button = WebDriverWait(driver, 20).until(
-            EC.element_to_be_clickable((By.ID, "O209_id-triggerWrap"))
-        )
-        calendar_button.click()
-
-
-        actions = ActionChains(driver)
-        actions.send_keys(Keys.ARROW_LEFT)
-        actions.send_keys(Keys.ENTER)
-        actions.perform()
-
+        driver.execute_script(f"Ext.getCmp('O20D_id').setValue('{start_date}');")
+        driver.execute_script(f"Ext.getCmp('O209_id').setValue('{end_date}');")
         time.sleep(1)
 
-        calendar_button = WebDriverWait(driver, 20).until(
-            EC.element_to_be_clickable((By.ID, "O20D_id-triggerWrap"))
-        )
-        calendar_button.click()
 
-
-        actions = ActionChains(driver)
-        actions.send_keys(Keys.ARROW_LEFT)
-        actions.send_keys(Keys.ENTER)
-        actions.perform()
 
 
 
@@ -203,11 +191,11 @@ if __name__ == "__main__":
     login_url = sys.argv[1]
     username = sys.argv[2]
     password = sys.argv[3]
-#     startDate = sys.argv[4]
-#     endDate = sys.argv[5]
+    start_date = sys.argv[4]
+    end_date = sys.argv[5]
 
     try:
-        result = capture_s_id_from_request_headers(login_url, username, password)
+        result = capture_s_id_from_request_headers(login_url, username, password,start_date,end_date)
         if isinstance(result, dict) and "error" in result:
             # 에러 발생 시 JSON 출력
             print(json.dumps(result, ensure_ascii=False))
