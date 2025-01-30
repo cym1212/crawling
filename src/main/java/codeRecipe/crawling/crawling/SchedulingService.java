@@ -108,7 +108,7 @@ public class SchedulingService {
     }
 
 
-    @Scheduled(cron = "0 0 11 * * *", zone = "Asia/Seoul")
+    @Scheduled(cron = "0 0 10 * * *", zone = "Asia/Seoul")
     public void sendMessageToSlackDailyData() {
         synchronized (this) {
             try {
@@ -119,7 +119,7 @@ public class SchedulingService {
         }
     }
     
-    @Scheduled(cron = "0 1 11 * * 1", zone = "Asia/Seoul")
+    @Scheduled(cron = "0 1 10 * * 1", zone = "Asia/Seoul")
     public void sendMessageToSlackWeeklyData() {
         synchronized (this) {
             try {
