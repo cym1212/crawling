@@ -16,7 +16,7 @@ import json
 import time
 import logging
 
-# 디버깅용 로그 출력 함수 - sys.stderr 대신 로깅 시스템을 사용
+# 디버깅용 로그 출력 함수 - 모든 로그 메시지는 stderr로 출력
 def log_debug(message):
     # 로그 메시지를 stderr로 출력 (Java에서는 에러 로그로 취급)
     print(f"DEBUG: {message}", file=sys.stderr)
@@ -65,7 +65,7 @@ def parse_table(html_source):
 # Selenium으로 로그인 및 데이터 조회
 def selenium_login_and_scrape_by_branch(login_url, target_url, username, password, start_date, end_date):
     options = webdriver.ChromeOptions()
-#     options.add_argument('--headless')
+    options.add_argument('--headless')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-popup-blocking')
@@ -196,10 +196,16 @@ if __name__ == "__main__":
     login_url, target_url, username, password, start_date, end_date = sys.argv[1:7]
 
     try:
+        # 명확히 stderr와 stdout을 분리
+        # 모든 로그/디버그 메시지는 stderr로 출력
+        # JSON 결과만 stdout으로 출력
         result = selenium_login_and_scrape_by_branch(login_url, target_url, username, password, start_date, end_date)
         # JSON 데이터만 표준 출력으로 출력 (디버그 메시지 없이)
         print(json.dumps(result, ensure_ascii=False))
+        sys.stdout.flush()  # stdout 버퍼를 즉시 비움
     except Exception as e:
         # 크롤링 중 예외 발생 시
         log_error(f"크롤링 실행 중 오류 발생: {str(e)}")
+        # 에러 JSON도 stdout에 출력 (Java가 파싱할 수 있도록)
         print(json.dumps({"error": str(e)}, ensure_ascii=False))
+        sys.stdout.flush()  # stdout 버퍼를 즉시 비움
