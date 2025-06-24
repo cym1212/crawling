@@ -14,9 +14,9 @@
             <button onclick="downloadChart()" class="btn btn-success me-2">
                 <i class="fas fa-download me-1"></i>차트 다운로드
             </button>
-            <button onclick="window.print()" class="btn btn-secondary">
-                <i class="fas fa-print me-1"></i>인쇄
-            </button>
+<!--            <button onclick="window.print()" class="btn btn-secondary">-->
+<!--                <i class="fas fa-print me-1"></i>인쇄-->
+<!--            </button>-->
         </div>
     </div>
 
@@ -119,98 +119,143 @@
 </div>
 
 <div layout:fragment="scripts">
-    <script>
+    <script th:inline="javascript">
         let salesChart;
-        const chartData = /*[[${chartData}]]*/ [];
-        const yAxisType = /*[[${yAxisType}]]*/ 'sales';
+        const chartData = [[${chartData}]];
+        const yAxisType = [[${yAxisType}]];
         
         document.addEventListener('DOMContentLoaded', function() {
-            if (chartData && chartData.length > 0) {
-                initChart();
-                updateSummary();
+            console.log('Chart data:', chartData);
+            console.log('Y-axis type:', yAxisType);
+            console.log('Chart data type:', typeof chartData);
+            console.log('Chart data length:', chartData ? chartData.length : 'undefined');
+            
+            // Canvas가 존재하는지 확인
+            const canvas = document.getElementById('salesChart');
+            if (!canvas) {
+                console.error('Canvas element not found');
+                return;
+            }
+            
+            if (chartData && Array.isArray(chartData) && chartData.length > 0) {
+                console.log('Initializing chart with', chartData.length, 'data points');
+                try {
+                    initChart();
+                    updateSummary();
+                } catch (error) {
+                    console.error('Error in chart initialization:', error);
+                }
+            } else {
+                console.log('No chart data available or data is not an array');
+                // 차트 영역에 메시지 표시
+                const chartContainer = document.querySelector('.card-body');
+                if (chartContainer) {
+                    chartContainer.innerHTML = '<div class="text-center py-5"><h5>차트 데이터를 불러오는 중 오류가 발생했습니다.</h5></div>';
+                }
             }
         });
         
         function initChart() {
             const ctx = document.getElementById('salesChart').getContext('2d');
             
-            const labels = chartData.map(item => item.date);
-            let data, label, backgroundColor, borderColor;
-            
-            if (yAxisType === 'quantity') {
-                data = chartData.map(item => item.quantity || 0);
-                label = '판매수량';
-                backgroundColor = 'rgba(54, 162, 235, 0.2)';
-                borderColor = 'rgba(54, 162, 235, 1)';
-            } else {
-                data = chartData.map(item => item.salesAmount || 0);
-                label = '매출금액';
-                backgroundColor = 'rgba(75, 192, 192, 0.2)';
-                borderColor = 'rgba(75, 192, 192, 1)';
-            }
-            
-            salesChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: label,
-                        data: data,
-                        backgroundColor: backgroundColor,
-                        borderColor: borderColor,
-                        borderWidth: 2,
-                        fill: true,
-                        tension: 0.4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            title: {
-                                display: true,
-                                text: yAxisType === 'quantity' ? '판매수량' : '매출금액'
-                            },
-                            ticks: {
-                                callback: function(value) {
-                                    if (yAxisType === 'quantity') {
-                                        return value.toLocaleString() + '개';
-                                    } else {
-                                        return value.toLocaleString() + '원';
-                                    }
-                                }
-                            }
-                        },
-                        x: {
-                            display: true,
-                            title: {
-                                display: true,
-                                text: '날짜'
-                            }
-                        }
+            try {
+                // 데이터 가공
+                const labels = chartData.map(item => {
+                    console.log('Processing date:', item.dateString || item.date);
+                    return item.dateString || item.date;
+                });
+                
+                let data, label, backgroundColor, borderColor;
+                
+                if (yAxisType === 'quantity') {
+                    data = chartData.map(item => {
+                        const qty = item.quantity || 0;
+                        console.log('Quantity data:', qty);
+                        return qty;
+                    });
+                    label = '판매수량';
+                    backgroundColor = 'rgba(54, 162, 235, 0.2)';
+                    borderColor = 'rgba(54, 162, 235, 1)';
+                } else {
+                    data = chartData.map(item => {
+                        const amount = item.salesAmount || 0;
+                        console.log('Sales amount data:', amount);
+                        return amount;
+                    });
+                    label = '매출금액';
+                    backgroundColor = 'rgba(75, 192, 192, 0.2)';
+                    borderColor = 'rgba(75, 192, 192, 1)';
+                }
+                
+                console.log('Labels:', labels);
+                console.log('Data:', data);
+                
+                // 기존 차트가 있으면 파괴
+                if (salesChart) {
+                    salesChart.destroy();
+                }
+                
+                salesChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: label,
+                            data: data,
+                            backgroundColor: backgroundColor,
+                            borderColor: borderColor,
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.4
+                        }]
                     },
-                    plugins: {
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    let value = context.parsed.y;
-                                    if (yAxisType === 'quantity') {
-                                        return label + ': ' + value.toLocaleString() + '개';
-                                    } else {
-                                        return label + ': ' + value.toLocaleString() + '원';
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function(value) {
+                                        if (yAxisType === 'quantity') {
+                                            return value.toLocaleString() + '개';
+                                        } else {
+                                            return value.toLocaleString() + '원';
+                                        }
                                     }
                                 }
+                            },
+                            x: {
+                                // 간단한 카테고리 스케일 사용
+                                display: true
                             }
                         },
-                        legend: {
-                            display: true,
-                            position: 'top'
+                        plugins: {
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let value = context.parsed.y;
+                                        if (yAxisType === 'quantity') {
+                                            return label + ': ' + value.toLocaleString() + '개';
+                                        } else {
+                                            return label + ': ' + value.toLocaleString() + '원';
+                                        }
+                                    }
+                                }
+                            },
+                            legend: {
+                                display: true,
+                                position: 'top'
+                            }
                         }
                     }
-                }
-            });
+                });
+                
+                console.log('Chart created successfully');
+                
+            } catch (error) {
+                console.error('Error creating chart:', error);
+            }
         }
         
         function updateSummary() {

@@ -111,6 +111,7 @@ public class SalesReportDto {
     @AllArgsConstructor
     public static class ChartData {
         private LocalDate date;
+        private String dateString;
         private Long salesAmount;
         private Long actualSales;
         private Long quantity;

@@ -178,12 +178,16 @@ public class SalesReportService {
         List<Object[]> results = salesRecordRepository.findDailySalesChart(startDate, endDate, locationId);
         
         return results.stream()
-                .map(result -> SalesReportDto.ChartData.builder()
-                        .date((LocalDate) result[0])
-                        .salesAmount(result[1] != null ? ((Number) result[1]).longValue() : 0L)
-                        .actualSales(result[2] != null ? ((Number) result[2]).longValue() : 0L)
-                        .quantity(result[3] != null ? ((Number) result[3]).longValue() : 0L)
-                        .build())
+                .map(result -> {
+                    LocalDate date = (LocalDate) result[0];
+                    return SalesReportDto.ChartData.builder()
+                            .date(date)
+                            .dateString(date.toString())
+                            .salesAmount(result[1] != null ? ((Number) result[1]).longValue() : 0L)
+                            .actualSales(result[2] != null ? ((Number) result[2]).longValue() : 0L)
+                            .quantity(result[3] != null ? ((Number) result[3]).longValue() : 0L)
+                            .build();
+                })
                 .collect(Collectors.toList());
     }
 

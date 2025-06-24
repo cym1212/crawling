@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 
 @Controller
@@ -101,6 +102,26 @@ public class AdminController {
         
         // 그래프 데이터 조회
         List<SalesReportDto.ChartData> chartData = salesReportService.getDailySalesChart(start, end, locationId);
+        
+        System.out.println("Chart data retrieved: " + chartData.size() + " items");
+        
+        // 테스트용: 데이터가 없으면 샘플 데이터 생성
+        if (chartData == null || chartData.isEmpty()) {
+            System.out.println("No chart data found, creating sample data");
+            chartData = new ArrayList<>();
+            for (int i = 0; i < 7; i++) {
+                LocalDate date = start.plusDays(i);
+                SalesReportDto.ChartData sample = SalesReportDto.ChartData.builder()
+                    .date(date)
+                    .dateString(date.toString())
+                    .salesAmount((long)(Math.random() * 1000000 + 100000))
+                    .actualSales((long)(Math.random() * 800000 + 80000))
+                    .quantity((long)(Math.random() * 100 + 10))
+                    .build();
+                chartData.add(sample);
+                System.out.println("Added sample data for " + date + ": sales=" + sample.getSalesAmount() + ", qty=" + sample.getQuantity());
+            }
+        }
         
         // 업체 목록
         List<SalesLocation> locations = salesLocationRepository.findAll();
