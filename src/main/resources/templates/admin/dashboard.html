@@ -110,19 +110,15 @@
                 </div>
                 <div class="card-body">
                     <div class="row">
-                        <div class="col-md-3 text-center">
+                        <div class="col-md-4 text-center">
                             <div class="h4 text-primary" th:text="${#numbers.formatInteger(monthlySummary.totalSalesAmount ?: 0, 0, 'COMMA')} + '원'"></div>
                             <small class="text-muted">총 매출액</small>
                         </div>
-                        <div class="col-md-3 text-center">
-                            <div class="h4 text-success" th:text="${#numbers.formatInteger(monthlySummary.totalActualSales ?: 0, 0, 'COMMA')} + '원'"></div>
-                            <small class="text-muted">실 매출액</small>
-                        </div>
-                        <div class="col-md-3 text-center">
+                        <div class="col-md-4 text-center">
                             <div class="h4 text-info" th:text="${#numbers.formatInteger(monthlySummary.totalQuantity ?: 0, 0, 'COMMA')} + '개'"></div>
                             <small class="text-muted">판매 수량</small>
                         </div>
-                        <div class="col-md-3 text-center">
+                        <div class="col-md-4 text-center">
                             <div class="h4 text-warning" th:text="${#numbers.formatInteger(monthlySummary.totalLocationCount ?: 0, 0, 'COMMA')} + '곳'"></div>
                             <small class="text-muted">판매처 수</small>
                         </div>

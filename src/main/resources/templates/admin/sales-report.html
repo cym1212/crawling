@@ -168,7 +168,6 @@
                             <th>상품코드</th>
                             <th class="text-end">수량</th>
                             <th class="text-end">매출금액</th>
-                            <th class="text-end">실매출</th>
                             <th class="text-end">매출원가</th>
                         </tr>
                     </thead>
@@ -181,7 +180,6 @@
                             <td th:text="${data.productCode}"></td>
                             <td class="text-end" th:text="${#numbers.formatInteger(data.quantity ?: 0, 0, 'COMMA')}"></td>
                             <td class="text-end" th:text="${#numbers.formatInteger(data.salesAmount ?: 0, 0, 'COMMA')} + '원'"></td>
-                            <td class="text-end" th:text="${#numbers.formatInteger(data.actualSales ?: 0, 0, 'COMMA')} + '원'"></td>
                             <td class="text-end" th:text="${#numbers.formatInteger(data.salesCost ?: 0, 0, 'COMMA')} + '원'"></td>
                         </tr>
                     </tbody>
