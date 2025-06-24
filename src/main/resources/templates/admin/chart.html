@@ -38,15 +38,25 @@
                         <input type="date" class="form-control" id="endDate" name="endDate" 
                                th:value="${endDate}">
                     </div>
-                    <div class="col-md-3">
-                        <label for="locationId" class="form-label">판매처</label>
-                        <select class="form-select" id="locationId" name="locationId">
-                            <option value="">전체 판매처</option>
-                            <option th:each="location : ${locations}" 
-                                    th:value="${location.locationId}" 
-                                    th:text="${location.locationName + ' (' + location.region + ')'}"
-                                    th:selected="${location.locationId == selectedLocationId}"></option>
-                        </select>
+                    <div class="col-md-4">
+                        <label class="form-label">판매처 선택</label>
+                        <div class="border rounded p-2" style="max-height: 150px; overflow-y: auto;">
+                            <div class="form-check">
+                                <input class="form-check-input location-checkbox" type="checkbox" value="전체" id="location-all">
+                                <label class="form-check-label fw-bold text-primary" for="location-all">
+                                    전체 판매처
+                                </label>
+                            </div>
+                            <hr class="my-2">
+                            <div th:each="location : ${locations}" class="form-check">
+                                <input class="form-check-input location-checkbox" type="checkbox" 
+                                       th:value="|${location.locationName} (${location.region})|"
+                                       th:id="|location-${location.locationId}|">
+                                <label class="form-check-label" th:for="|location-${location.locationId}|"
+                                       th:text="|${location.locationName} (${location.region})|">
+                                </label>
+                            </div>
+                        </div>
                     </div>
                     <div class="col-md-2">
                         <label for="yAxisType" class="form-label">Y축 데이터</label>
@@ -55,9 +65,9 @@
                             <option value="quantity" th:selected="${yAxisType == 'quantity'}">판매수량</option>
                         </select>
                     </div>
-                    <div class="col-md-1 d-flex align-items-end">
-                        <button type="submit" class="btn btn-primary w-100">
-                            <i class="fas fa-sync me-1"></i>갱신
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="button" onclick="updateChart()" class="btn btn-primary w-100">
+                            <i class="fas fa-sync me-1"></i>차트 갱신
                         </button>
                     </div>
                 </div>
@@ -75,14 +85,14 @@
             </h6>
         </div>
         <div class="card-body">
-            <div th:if="${#lists.isEmpty(chartData)}" class="text-center py-5">
+            <div th:if="${#maps.isEmpty(chartDataByLocation)}" class="text-center py-5">
                 <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
                 <h5 class="text-muted">선택한 조건에 해당하는 차트 데이터가 없습니다.</h5>
                 <p class="text-muted">다른 조건으로 검색해보세요.</p>
             </div>
             
-            <div th:unless="${#lists.isEmpty(chartData)}">
-                <div style="position: relative; height: 400px;">
+            <div th:unless="${#maps.isEmpty(chartDataByLocation)}">
+                <div style="position: relative; height: 600px;">
                     <canvas id="salesChart"></canvas>
                 </div>
                 
@@ -121,74 +131,210 @@
 <div layout:fragment="scripts">
     <script th:inline="javascript">
         let salesChart;
-        const chartData = [[${chartData}]];
-        const yAxisType = [[${yAxisType}]];
+        const chartDataByLocation = [[${chartDataByLocation}]];
+        let yAxisType = [[${yAxisType}]];
+        
+        // 색상 팔레트 - 더 구분되는 색상들
+        const colorPalette = [
+            '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', 
+            '#FF9F40', '#FF1744', '#00E676', '#00BCD4', '#FF5722',
+            '#8BC34A', '#E91E63', '#3F51B5', '#FF9800', '#9C27B0',
+            '#607D8B', '#795548', '#FFC107', '#009688', '#673AB7'
+        ];
+        
+        // 선 스타일 패턴
+        const dashPatterns = [
+            [], // 실선
+            [5, 5], // 짧은 점선
+            [10, 5], // 긴 점선
+            [15, 3, 3, 3], // 점-선 패턴
+            [20, 5, 5, 5], // 긴선-점 패턴
+            [8, 3, 2, 3], // 복합 패턴
+            [12, 3], // 중간 점선
+            [6, 2, 2, 2, 2, 2] // 복잡한 패턴
+        ];
         
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('Chart data:', chartData);
+            console.log('Chart data by location:', chartDataByLocation);
             console.log('Y-axis type:', yAxisType);
-            console.log('Chart data type:', typeof chartData);
-            console.log('Chart data length:', chartData ? chartData.length : 'undefined');
             
-            // Canvas가 존재하는지 확인
-            const canvas = document.getElementById('salesChart');
-            if (!canvas) {
-                console.error('Canvas element not found');
-                return;
-            }
+            // 전체 판매처 체크박스 이벤트
+            document.getElementById('location-all').addEventListener('change', function() {
+                const isChecked = this.checked;
+                const locationCheckboxes = document.querySelectorAll('.location-checkbox:not(#location-all)');
+                locationCheckboxes.forEach(cb => {
+                    cb.checked = isChecked;
+                });
+                updateChart();
+            });
             
-            if (chartData && Array.isArray(chartData) && chartData.length > 0) {
-                console.log('Initializing chart with', chartData.length, 'data points');
-                try {
-                    initChart();
-                    updateSummary();
-                } catch (error) {
-                    console.error('Error in chart initialization:', error);
-                }
-            } else {
-                console.log('No chart data available or data is not an array');
-                // 차트 영역에 메시지 표시
-                const chartContainer = document.querySelector('.card-body');
-                if (chartContainer) {
-                    chartContainer.innerHTML = '<div class="text-center py-5"><h5>차트 데이터를 불러오는 중 오류가 발생했습니다.</h5></div>';
-                }
-            }
+            // 개별 판매처 체크박스 이벤트
+            document.querySelectorAll('.location-checkbox:not(#location-all)').forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    updateChart();
+                    
+                    // 전체 체크박스 상태 업데이트
+                    const allLocationCheckboxes = document.querySelectorAll('.location-checkbox:not(#location-all)');
+                    const checkedCount = document.querySelectorAll('.location-checkbox:not(#location-all):checked').length;
+                    const allCheckbox = document.getElementById('location-all');
+                    
+                    if (checkedCount === 0) {
+                        allCheckbox.checked = false;
+                        allCheckbox.indeterminate = false;
+                    } else if (checkedCount === allLocationCheckboxes.length) {
+                        allCheckbox.checked = true;
+                        allCheckbox.indeterminate = false;
+                    } else {
+                        allCheckbox.checked = false;
+                        allCheckbox.indeterminate = true;
+                    }
+                });
+            });
+            
+            // Y축 타입 변경 이벤트
+            document.getElementById('yAxisType').addEventListener('change', function() {
+                yAxisType = this.value;
+                updateChart();
+            });
+            
+            // 초기 차트 로드 (전체 판매처로)
+            updateChart();
         });
         
-        function initChart() {
+        function updateChart() {
+            const selectedLocations = getSelectedLocations();
+            console.log('Selected locations:', selectedLocations);
+            console.log('Chart data by location keys:', Object.keys(chartDataByLocation));
+            
             const ctx = document.getElementById('salesChart').getContext('2d');
             
             try {
-                // 데이터 가공
-                const labels = chartData.map(item => {
-                    console.log('Processing date:', item.dateString || item.date);
-                    return item.dateString || item.date;
+                // 모든 날짜 수집 (모든 판매처의 날짜를 합침)
+                const allDates = new Set();
+                Object.values(chartDataByLocation).forEach(locationData => {
+                    locationData.forEach(item => {
+                        allDates.add(item.dateString);
+                    });
+                });
+                const sortedDates = Array.from(allDates).sort();
+                console.log('All dates:', sortedDates);
+                
+                // 데이터셋 생성
+                const datasets = [];
+                let colorIndex = 0;
+                
+                // 항상 전체 판매처 데이터 추가
+                const totalData = {};
+                Object.values(chartDataByLocation).forEach(locationData => {
+                    locationData.forEach(item => {
+                        const date = item.dateString;
+                        if (!totalData[date]) {
+                            totalData[date] = { salesAmount: 0, quantity: 0 };
+                        }
+                        totalData[date].salesAmount += item.salesAmount || 0;
+                        totalData[date].quantity += item.quantity || 0;
+                    });
                 });
                 
-                let data, label, backgroundColor, borderColor;
+                const totalChartData = sortedDates.map(date => {
+                    const dayData = totalData[date];
+                    if (!dayData) return 0;
+                    return yAxisType === 'quantity' ? dayData.quantity : dayData.salesAmount;
+                });
                 
-                if (yAxisType === 'quantity') {
-                    data = chartData.map(item => {
-                        const qty = item.quantity || 0;
-                        console.log('Quantity data:', qty);
-                        return qty;
-                    });
-                    label = '판매수량';
-                    backgroundColor = 'rgba(54, 162, 235, 0.2)';
-                    borderColor = 'rgba(54, 162, 235, 1)';
-                } else {
-                    data = chartData.map(item => {
-                        const amount = item.salesAmount || 0;
-                        console.log('Sales amount data:', amount);
-                        return amount;
-                    });
-                    label = '매출금액';
-                    backgroundColor = 'rgba(75, 192, 192, 0.2)';
-                    borderColor = 'rgba(75, 192, 192, 1)';
-                }
+                datasets.push({
+                    label: '전체 판매처',
+                    data: totalChartData,
+                    borderColor: '#000000',
+                    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+                    borderWidth: 4,
+                    fill: false,
+                    tension: 0.4,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    borderDash: [5, 5] // 점선으로 구분
+                });
+                console.log('Added total dataset with', totalChartData.length, 'data points');
                 
-                console.log('Labels:', labels);
-                console.log('Data:', data);
+                // 체크된 개별 판매처들 모두 추가 (전체 체크박스는 제외)
+                const individualSelectedLocations = selectedLocations.filter(loc => loc !== '전체');
+                console.log('Individual selected locations:', individualSelectedLocations);
+                console.log('Available chartDataByLocation keys:', Object.keys(chartDataByLocation));
+                
+                individualSelectedLocations.forEach((locationName, index) => {
+                    console.log(`Processing individual location ${index + 1}:`, locationName);
+                    
+                    // 매칭 로직 개선: 체크박스 값에서 실제 업체명만 추출
+                    const extractedLocationName = locationName.split(' (')[0]; // 괄호 앞 부분만 추출
+                    console.log('Extracted location name:', extractedLocationName);
+                    
+                    // chartDataByLocation에서 정확한 키 찾기
+                    const foundLocationName = Object.keys(chartDataByLocation).find(key => {
+                        console.log(`Comparing "${key}" with "${extractedLocationName}"`);
+                        return key === extractedLocationName || 
+                               key.includes(extractedLocationName) || 
+                               extractedLocationName.includes(key);
+                    });
+                    
+                    console.log('Found location name:', foundLocationName);
+                    
+                    if (foundLocationName && chartDataByLocation[foundLocationName]) {
+                        const locationData = chartDataByLocation[foundLocationName];
+                        console.log(`Location data for ${foundLocationName}:`, locationData.length, 'items');
+                        
+                        const dataMap = {};
+                        locationData.forEach(item => {
+                            dataMap[item.dateString] = item;
+                        });
+                        
+                        const data = sortedDates.map(date => {
+                            const dayData = dataMap[date];
+                            if (!dayData) return 0;
+                            return yAxisType === 'quantity' ? (dayData.quantity || 0) : (dayData.salesAmount || 0);
+                        });
+                        
+                        const color = colorPalette[colorIndex % colorPalette.length];
+                        const dataset = {
+                            label: locationName, // 체크박스의 전체 라벨 사용 (지역 포함)
+                            data: data,
+                            borderColor: color,
+                            backgroundColor: color + '20',
+                            borderWidth: 3,
+                            fill: false,
+                            tension: 0.4,
+                            pointRadius: 4,
+                            pointHoverRadius: 6
+                        };
+                        
+                        datasets.push(dataset);
+                        colorIndex++;
+                        console.log(`✅ Successfully added dataset ${datasets.length - 1} for "${locationName}" with ${data.length} data points`);
+                        console.log('Dataset color:', color);
+                    } else {
+                        console.error(`❌ Location data NOT FOUND for: "${locationName}"`);
+                        console.error('Extracted name:', extractedLocationName);
+                        console.error('Available locations:', Object.keys(chartDataByLocation));
+                        
+                        // 빈 데이터셋이라도 추가해서 문제를 명확히 확인
+                        const color = colorPalette[colorIndex % colorPalette.length];
+                        datasets.push({
+                            label: locationName + ' (데이터 없음)',
+                            data: new Array(sortedDates.length).fill(0),
+                            borderColor: color,
+                            backgroundColor: color + '20',
+                            borderWidth: 1,
+                            borderDash: [10, 5],
+                            fill: false,
+                            tension: 0.4,
+                            pointRadius: 2,
+                            pointHoverRadius: 4
+                        });
+                        colorIndex++;
+                        console.log(`⚠️ Added empty dataset for "${locationName}"`);
+                    }
+                });
+                
+                console.log('Total datasets created:', datasets.length);
                 
                 // 기존 차트가 있으면 파괴
                 if (salesChart) {
@@ -198,23 +344,36 @@
                 salesChart = new Chart(ctx, {
                     type: 'line',
                     data: {
-                        labels: labels,
-                        datasets: [{
-                            label: label,
-                            data: data,
-                            backgroundColor: backgroundColor,
-                            borderColor: borderColor,
-                            borderWidth: 2,
-                            fill: true,
-                            tension: 0.4
-                        }]
+                        labels: sortedDates,
+                        datasets: datasets
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
+                        interaction: {
+                            intersect: false,
+                            mode: 'index'
+                        },
+                        elements: {
+                            line: {
+                                tension: 0.4
+                            },
+                            point: {
+                                radius: 4,
+                                hoverRadius: 6
+                            }
+                        },
                         scales: {
                             y: {
                                 beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: yAxisType === 'quantity' ? '판매수량(개)' : '매출금액(원)',
+                                    font: {
+                                        size: 14,
+                                        weight: 'bold'
+                                    }
+                                },
                                 ticks: {
                                     callback: function(value) {
                                         if (yAxisType === 'quantity') {
@@ -223,60 +382,162 @@
                                             return value.toLocaleString() + '원';
                                         }
                                     }
+                                },
+                                grid: {
+                                    color: 'rgba(0,0,0,0.1)'
                                 }
                             },
                             x: {
-                                // 간단한 카테고리 스케일 사용
-                                display: true
+                                title: {
+                                    display: true,
+                                    text: '날짜',
+                                    font: {
+                                        size: 14,
+                                        weight: 'bold'
+                                    }
+                                },
+                                grid: {
+                                    color: 'rgba(0,0,0,0.1)'
+                                }
                             }
                         },
                         plugins: {
                             tooltip: {
+                                backgroundColor: 'rgba(0,0,0,0.8)',
+                                titleColor: 'white',
+                                bodyColor: 'white',
+                                borderWidth: 1,
                                 callbacks: {
+                                    title: function(context) {
+                                        return context[0].label;
+                                    },
                                     label: function(context) {
                                         let value = context.parsed.y;
-                                        if (yAxisType === 'quantity') {
-                                            return label + ': ' + value.toLocaleString() + '개';
-                                        } else {
-                                            return label + ': ' + value.toLocaleString() + '원';
-                                        }
+                                        const suffix = yAxisType === 'quantity' ? '개' : '원';
+                                        return context.dataset.label + ': ' + value.toLocaleString() + suffix;
                                     }
                                 }
                             },
                             legend: {
                                 display: true,
-                                position: 'top'
+                                position: 'top',
+                                labels: {
+                                    usePointStyle: true,
+                                    font: {
+                                        size: 12
+                                    },
+                                    padding: 20
+                                }
                             }
+                        },
+                        animation: {
+                            duration: 800,
+                            easing: 'easeInOutQuart'
                         }
                     }
                 });
                 
-                console.log('Chart created successfully');
+                console.log('Chart updated successfully');
+                updateSummary();
                 
             } catch (error) {
-                console.error('Error creating chart:', error);
+                console.error('Error updating chart:', error);
             }
         }
         
+        function getSelectedLocations() {
+            const selected = [];
+            document.querySelectorAll('.location-checkbox:checked').forEach(checkbox => {
+                selected.push(checkbox.value);
+            });
+            return selected;
+        }
+        
         function updateSummary() {
-            let values;
-            if (yAxisType === 'quantity') {
-                values = chartData.map(item => item.quantity || 0);
+            const selectedLocations = getSelectedLocations();
+            let allValues = [];
+            
+            // 항상 전체 데이터 포함
+            const totalData = {};
+            Object.values(chartDataByLocation).forEach(locationData => {
+                locationData.forEach(item => {
+                    const date = item.dateString;
+                    if (!totalData[date]) {
+                        totalData[date] = { salesAmount: 0, quantity: 0 };
+                    }
+                    totalData[date].salesAmount += item.salesAmount || 0;
+                    totalData[date].quantity += item.quantity || 0;
+                });
+            });
+            
+            Object.values(totalData).forEach(dayData => {
+                if (yAxisType === 'quantity') {
+                    allValues.push(dayData.quantity);
+                } else {
+                    allValues.push(dayData.salesAmount);
+                }
+            });
+            
+            // 체크된 개별 판매처들의 데이터도 포함
+            const individualSelectedLocations = selectedLocations.filter(loc => loc !== '전체');
+            individualSelectedLocations.forEach(locationName => {
+                // 체크박스 값에서 실제 업체명만 추출
+                const extractedLocationName = locationName.split(' (')[0];
+                
+                const foundLocationName = Object.keys(chartDataByLocation).find(key => {
+                    return key === extractedLocationName || 
+                           key.includes(extractedLocationName) || 
+                           extractedLocationName.includes(key);
+                });
+                
+                if (foundLocationName && chartDataByLocation[foundLocationName]) {
+                    chartDataByLocation[foundLocationName].forEach(item => {
+                        if (yAxisType === 'quantity') {
+                            allValues.push(item.quantity || 0);
+                        } else {
+                            allValues.push(item.salesAmount || 0);
+                        }
+                    });
+                }
+            });
+            
+            if (allValues.length > 0) {
+                const total = allValues.reduce((sum, val) => sum + val, 0);
+                const avg = total / allValues.length;
+                const max = Math.max(...allValues);
+                const min = Math.min(...allValues);
+                
+                const suffix = yAxisType === 'quantity' ? '개' : '원';
+                
+                document.getElementById('avgValue').textContent = Math.round(avg).toLocaleString() + suffix;
+                document.getElementById('maxValue').textContent = max.toLocaleString() + suffix;
+                document.getElementById('minValue').textContent = min.toLocaleString() + suffix;
+                document.getElementById('totalValue').textContent = total.toLocaleString() + suffix;
             } else {
-                values = chartData.map(item => item.salesAmount || 0);
+                // 전체 데이터만 있는 경우에도 요약 정보 표시
+                const totalValues = Object.values(totalData);
+                if (totalValues.length > 0) {
+                    const values = totalValues.map(dayData => 
+                        yAxisType === 'quantity' ? dayData.quantity : dayData.salesAmount
+                    );
+                    const total = values.reduce((sum, val) => sum + val, 0);
+                    const avg = total / values.length;
+                    const max = Math.max(...values);
+                    const min = Math.min(...values);
+                    
+                    const suffix = yAxisType === 'quantity' ? '개' : '원';
+                    
+                    document.getElementById('avgValue').textContent = Math.round(avg).toLocaleString() + suffix;
+                    document.getElementById('maxValue').textContent = max.toLocaleString() + suffix;
+                    document.getElementById('minValue').textContent = min.toLocaleString() + suffix;
+                    document.getElementById('totalValue').textContent = total.toLocaleString() + suffix;
+                } else {
+                    document.getElementById('avgValue').textContent = '0';
+                    document.getElementById('maxValue').textContent = '0';
+                    document.getElementById('minValue').textContent = '0';
+                    document.getElementById('totalValue').textContent = '0';
+                }
             }
-            
-            const total = values.reduce((sum, val) => sum + val, 0);
-            const avg = values.length > 0 ? total / values.length : 0;
-            const max = values.length > 0 ? Math.max(...values) : 0;
-            const min = values.length > 0 ? Math.min(...values) : 0;
-            
-            const suffix = yAxisType === 'quantity' ? '개' : '원';
-            
-            document.getElementById('avgValue').textContent = Math.round(avg).toLocaleString() + suffix;
-            document.getElementById('maxValue').textContent = max.toLocaleString() + suffix;
-            document.getElementById('minValue').textContent = min.toLocaleString() + suffix;
-            document.getElementById('totalValue').textContent = total.toLocaleString() + suffix;
         }
         
         function downloadChart() {

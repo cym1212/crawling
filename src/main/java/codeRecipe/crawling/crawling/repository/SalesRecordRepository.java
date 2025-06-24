@@ -164,4 +164,16 @@ public interface SalesRecordRepository extends JpaRepository<SalesRecord, Long> 
                                        @Param("endDate") LocalDate endDate,
                                        @Param("locationId") Long locationId);
 
+    // 판매처별 그래프용 일별 집계 쿼리 (지점별 구분)
+    @Query("SELECT CONCAT(sl.locationName, ' ', COALESCE(sl.region, '')), sr.salesDate, SUM(sr.salesAmount), SUM(sr.actualSales), SUM(sr.quantity) " +
+            "FROM SalesRecord sr " +
+            "JOIN sr.salesLocation sl " +
+            "WHERE sr.salesDate BETWEEN :startDate AND :endDate " +
+            "AND (:locationId IS NULL OR sl.locationId = :locationId) " +
+            "GROUP BY sl.locationName, sl.region, sr.salesDate " +
+            "ORDER BY sl.locationName, sl.region, sr.salesDate")
+    List<Object[]> findDailySalesChartByLocation(@Param("startDate") LocalDate startDate,
+                                                 @Param("endDate") LocalDate endDate,
+                                                 @Param("locationId") Long locationId);
+
 }

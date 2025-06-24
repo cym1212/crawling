@@ -14,7 +14,10 @@ import org.springframework.stereotype.Service;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -189,6 +192,33 @@ public class SalesReportService {
                             .build();
                 })
                 .collect(Collectors.toList());
+    }
+
+    // 판매처별 그래프용 일별 매출 데이터
+    public Map<String, List<SalesReportDto.ChartData>> getDailySalesChartByLocation(LocalDate startDate, LocalDate endDate, Long locationId) {
+        List<Object[]> results = salesRecordRepository.findDailySalesChartByLocation(startDate, endDate, locationId);
+        
+        Map<String, List<SalesReportDto.ChartData>> resultMap = new HashMap<>();
+        
+        for (Object[] result : results) {
+            String locationName = (String) result[0];
+            LocalDate date = (LocalDate) result[1];
+            Long salesAmount = result[2] != null ? ((Number) result[2]).longValue() : 0L;
+            Long actualSales = result[3] != null ? ((Number) result[3]).longValue() : 0L;
+            Long quantity = result[4] != null ? ((Number) result[4]).longValue() : 0L;
+            
+            SalesReportDto.ChartData chartData = SalesReportDto.ChartData.builder()
+                    .date(date)
+                    .dateString(date.toString())
+                    .salesAmount(salesAmount)
+                    .actualSales(actualSales)
+                    .quantity(quantity)
+                    .build();
+            
+            resultMap.computeIfAbsent(locationName, k -> new ArrayList<>()).add(chartData);
+        }
+        
+        return resultMap;
     }
 
     private SalesReportDto.SalesData convertToSalesData(SalesRecord record) {

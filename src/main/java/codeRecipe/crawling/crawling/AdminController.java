@@ -18,7 +18,11 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Controller
 @RequestMapping("/admin")
@@ -100,33 +104,67 @@ public class AdminController {
         LocalDate start = startDate != null ? LocalDate.parse(startDate) : LocalDate.now().minusDays(30);
         LocalDate end = endDate != null ? LocalDate.parse(endDate) : LocalDate.now();
         
-        // 그래프 데이터 조회
-        List<SalesReportDto.ChartData> chartData = salesReportService.getDailySalesChart(start, end, locationId);
+        // 판매처별 그래프 데이터 조회
+        Map<String, List<SalesReportDto.ChartData>> chartDataByLocation = salesReportService.getDailySalesChartByLocation(start, end, locationId);
         
-        System.out.println("Chart data retrieved: " + chartData.size() + " items");
+        System.out.println("Chart data by location retrieved: " + chartDataByLocation.size() + " locations");
         
         // 테스트용: 데이터가 없으면 샘플 데이터 생성
-        if (chartData == null || chartData.isEmpty()) {
+        if (chartDataByLocation == null || chartDataByLocation.isEmpty()) {
             System.out.println("No chart data found, creating sample data");
-            chartData = new ArrayList<>();
-            for (int i = 0; i < 7; i++) {
-                LocalDate date = start.plusDays(i);
-                SalesReportDto.ChartData sample = SalesReportDto.ChartData.builder()
-                    .date(date)
-                    .dateString(date.toString())
-                    .salesAmount((long)(Math.random() * 1000000 + 100000))
-                    .actualSales((long)(Math.random() * 800000 + 80000))
-                    .quantity((long)(Math.random() * 100 + 10))
-                    .build();
-                chartData.add(sample);
-                System.out.println("Added sample data for " + date + ": sales=" + sample.getSalesAmount() + ", qty=" + sample.getQuantity());
+            chartDataByLocation = new HashMap<>();
+            List<SalesLocation> sampleLocations = salesLocationRepository.findAll();
+            
+            if (sampleLocations.isEmpty()) {
+                // 샘플 판매처 생성 (지점별로 구분)
+                sampleLocations = Arrays.asList(
+                    SalesLocation.builder().locationName("Hotracks").region("건대스타시티점").build(),
+                    SalesLocation.builder().locationName("Hotracks").region("수유점").build(),
+                    SalesLocation.builder().locationName("교보문고").region("강남점").build(),
+                    SalesLocation.builder().locationName("교보문고").region("잠실점").build()
+                );
+            }
+            
+            // locationId가 선택된 경우 해당 지점만 필터링
+            if (locationId != null) {
+                // 실제 DB에서 선택된 locationId의 정보를 조회
+                SalesLocation selectedLocation = salesLocationRepository.findById(locationId).orElse(null);
+                if (selectedLocation != null) {
+                    sampleLocations = Arrays.asList(selectedLocation);
+                } else {
+                    // DB에 해당 locationId가 없으면 빈 리스트
+                    sampleLocations = new ArrayList<>();
+                }
+            }
+            
+            for (int locationIndex = 0; locationIndex < sampleLocations.size(); locationIndex++) {
+                SalesLocation location = sampleLocations.get(locationIndex);
+                List<SalesReportDto.ChartData> locationData = new ArrayList<>();
+                // 지점별로 구분하여 키 생성 (판매처명 + 지점명)
+                String locationKey = location.getLocationName() + " " + (location.getRegion() != null ? location.getRegion() : "");
+                int locationHash = Math.abs(locationKey.hashCode()) % 1000;
+                
+                for (int i = 0; i < 7; i++) {
+                    LocalDate date = start.plusDays(i);
+                    // 지점명의 해시코드를 사용하여 각 지점별로 고유한 시드값 생성
+                    long baseSeed = locationHash * 1000 + i;
+                    SalesReportDto.ChartData sample = SalesReportDto.ChartData.builder()
+                        .date(date)
+                        .dateString(date.toString())
+                        .salesAmount((long)(baseSeed % 300000 + 100000 + locationHash * 1000))
+                        .actualSales((long)(baseSeed % 250000 + 80000 + locationHash * 800))
+                        .quantity((long)(baseSeed % 30 + 10 + locationHash % 20))
+                        .build();
+                    locationData.add(sample);
+                }
+                chartDataByLocation.put(locationKey, locationData);
             }
         }
         
         // 업체 목록
         List<SalesLocation> locations = salesLocationRepository.findAll();
         
-        model.addAttribute("chartData", chartData);
+        model.addAttribute("chartDataByLocation", chartDataByLocation);
         model.addAttribute("locations", locations);
         model.addAttribute("startDate", start);
         model.addAttribute("endDate", end);
