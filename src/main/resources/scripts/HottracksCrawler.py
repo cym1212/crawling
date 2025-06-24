@@ -112,16 +112,45 @@ def selenium_login_and_scrape_by_branch(login_url, target_url, username, passwor
         driver.execute_script("document.getElementById('srchDateT').value = arguments[0];", end_date)
 
         location_data = []
-        location_options = [
-            "물류", "광화문점", "이화여대점", "강남점", "서울대점", "잠실점", "건대스타시티점", "창원점",
-            "거제디큐브", "목동점", "천안점", "온라인몰", "영등포점", "대구점","원그로브점", "수유점", "부산점",
-            "디큐브시티점", "판교점", "전주점", "동대문점", "울산점", "일산점", "송도점", "대전점",
-            "광교월드스퀘어센터", "센텀시티점", "해운대 팝업스토어", "전북대점", "인천점",
-            "부천점", "은평점", "칠곡점", "세종점","신채널3", "청량리점", "합정점", "가든파이브", "평촌점",
-            "경성대.부경대센터", "분당점", "광주상무센터", "광교점", "천호점", "카페자우랩",
-            "B2B영업팀", "파주본점", "B2B개발팀(핫트마켓)", "B2B영업팀_B", "본사문구음반",
-            "해외영업", "보관지원센터", "거제디큐브", "대백프라자"
-        ]
+        
+        # 수불처 목록을 동적으로 가져오기
+        try:
+            select_element = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.ID, "srchRdpCode"))
+            )
+            
+            # select 요소에서 모든 option 가져오기
+            options = select_element.find_elements(By.TAG_NAME, "option")
+            
+            # 텍스트 값 추출 (첫 번째 "전체" 옵션은 제외)
+            location_options = []
+            for option in options[1:]:  # 첫 번째 "전체" 옵션은 스킵
+                option_text = option.text.strip()
+                option_value = option.get_attribute("value")
+                
+                # "(종료)"가 포함된 매장은 제외 (선택적)
+                if "(종료)" in option_text:
+                    log_debug(f"종료된 매장 제외: {option_text}")
+                    continue
+                    
+                location_options.append(option_text)
+                log_debug(f"발견된 수불처: {option_text} (value: {option_value})")
+            
+            log_debug(f"총 {len(location_options)}개의 수불처를 발견했습니다.")
+            
+        except Exception as e:
+            log_error(f"수불처 목록을 가져오는 중 오류 발생: {str(e)}")
+            # 실패 시 기본 하드코딩 목록 사용
+            location_options = [
+                "물류", "광화문점", "이화여대점", "강남점", "서울대점", "잠실점", "건대스타시티점", "창원점",
+                "거제디큐브", "목동점", "천안점", "온라인몰", "영등포점", "대구점","원그로브점", "수유점", "부산점",
+                "디큐브시티점", "판교점", "전주점", "동대문점", "울산점", "일산점", "송도점", "대전점",
+                "광교월드스퀘어센터", "센텀시티점", "해운대 팝업스토어", "전북대점", "인천점",
+                "부천점", "은평점", "칠곡점", "세종점","신채널3", "청량리점", "합정점", "가든파이브", "평촌점",
+                "경성대.부경대센터", "분당점", "광주상무센터", "광교점", "천호점", "카페자우랩",
+                "B2B영업팀", "파주본점", "B2B개발팀(핫트마켓)", "B2B영업팀_B", "본사문구음반",
+                "해외영업", "보관지원센터", "거제디큐브", "대백프라자"
+            ]
 
         for location in location_options:
             try:

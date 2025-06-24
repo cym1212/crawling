@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}">
+<head>
+    <title layout:fragment="title">매출 차트</title>
+</head>
+
+<div layout:fragment="content">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-2 pb-2 mb-3 border-bottom">
+        <h1 class="h2">
+            <i class="fas fa-chart-line me-2"></i>매출 차트
+        </h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <button onclick="downloadChart()" class="btn btn-success me-2">
+                <i class="fas fa-download me-1"></i>차트 다운로드
+            </button>
+            <button onclick="window.print()" class="btn btn-secondary">
+                <i class="fas fa-print me-1"></i>인쇄
+            </button>
+        </div>
+    </div>
+
+    <!-- 검색 및 필터 -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5><i class="fas fa-filter me-2"></i>차트 조건</h5>
+        </div>
+        <div class="card-body">
+            <form method="get" action="/admin/chart">
+                <div class="row">
+                    <div class="col-md-3">
+                        <label for="startDate" class="form-label">시작일</label>
+                        <input type="date" class="form-control" id="startDate" name="startDate" 
+                               th:value="${startDate}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="endDate" class="form-label">종료일</label>
+                        <input type="date" class="form-control" id="endDate" name="endDate" 
+                               th:value="${endDate}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="locationId" class="form-label">판매처</label>
+                        <select class="form-select" id="locationId" name="locationId">
+                            <option value="">전체 판매처</option>
+                            <option th:each="location : ${locations}" 
+                                    th:value="${location.locationId}" 
+                                    th:text="${location.locationName + ' (' + location.region + ')'}"
+                                    th:selected="${location.locationId == selectedLocationId}"></option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="yAxisType" class="form-label">Y축 데이터</label>
+                        <select class="form-select" id="yAxisType" name="yAxisType">
+                            <option value="sales" th:selected="${yAxisType == 'sales'}">매출금액</option>
+                            <option value="quantity" th:selected="${yAxisType == 'quantity'}">판매수량</option>
+                        </select>
+                    </div>
+                    <div class="col-md-1 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-sync me-1"></i>갱신
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 차트 영역 -->
+    <div class="card shadow">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">
+                <i class="fas fa-chart-line me-2"></i>
+                일별 매출 추이
+                <span th:text="'(' + ${#temporals.format(startDate, 'yyyy-MM-dd')} + ' ~ ' + ${#temporals.format(endDate, 'yyyy-MM-dd')} + ')'"></span>
+            </h6>
+        </div>
+        <div class="card-body">
+            <div th:if="${#lists.isEmpty(chartData)}" class="text-center py-5">
+                <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">선택한 조건에 해당하는 차트 데이터가 없습니다.</h5>
+                <p class="text-muted">다른 조건으로 검색해보세요.</p>
+            </div>
+            
+            <div th:unless="${#lists.isEmpty(chartData)}">
+                <div style="position: relative; height: 400px;">
+                    <canvas id="salesChart"></canvas>
+                </div>
+                
+                <!-- 차트 요약 정보 -->
+                <div class="row mt-4">
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div class="h4 text-primary" id="avgValue">0</div>
+                            <small class="text-muted">일평균</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div class="h4 text-success" id="maxValue">0</div>
+                            <small class="text-muted">최고값</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div class="h4 text-warning" id="minValue">0</div>
+                            <small class="text-muted">최저값</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div class="h4 text-info" id="totalValue">0</div>
+                            <small class="text-muted">총합</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div layout:fragment="scripts">
+    <script>
+        let salesChart;
+        const chartData = /*[[${chartData}]]*/ [];
+        const yAxisType = /*[[${yAxisType}]]*/ 'sales';
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            if (chartData && chartData.length > 0) {
+                initChart();
+                updateSummary();
+            }
+        });
+        
+        function initChart() {
+            const ctx = document.getElementById('salesChart').getContext('2d');
+            
+            const labels = chartData.map(item => item.date);
+            let data, label, backgroundColor, borderColor;
+            
+            if (yAxisType === 'quantity') {
+                data = chartData.map(item => item.quantity || 0);
+                label = '판매수량';
+                backgroundColor = 'rgba(54, 162, 235, 0.2)';
+                borderColor = 'rgba(54, 162, 235, 1)';
+            } else {
+                data = chartData.map(item => item.salesAmount || 0);
+                label = '매출금액';
+                backgroundColor = 'rgba(75, 192, 192, 0.2)';
+                borderColor = 'rgba(75, 192, 192, 1)';
+            }
+            
+            salesChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: label,
+                        data: data,
+                        backgroundColor: backgroundColor,
+                        borderColor: borderColor,
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: yAxisType === 'quantity' ? '판매수량' : '매출금액'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    if (yAxisType === 'quantity') {
+                                        return value.toLocaleString() + '개';
+                                    } else {
+                                        return value.toLocaleString() + '원';
+                                    }
+                                }
+                            }
+                        },
+                        x: {
+                            display: true,
+                            title: {
+                                display: true,
+                                text: '날짜'
+                            }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let value = context.parsed.y;
+                                    if (yAxisType === 'quantity') {
+                                        return label + ': ' + value.toLocaleString() + '개';
+                                    } else {
+                                        return label + ': ' + value.toLocaleString() + '원';
+                                    }
+                                }
+                            }
+                        },
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        }
+                    }
+                }
+            });
+        }
+        
+        function updateSummary() {
+            let values;
+            if (yAxisType === 'quantity') {
+                values = chartData.map(item => item.quantity || 0);
+            } else {
+                values = chartData.map(item => item.salesAmount || 0);
+            }
+            
+            const total = values.reduce((sum, val) => sum + val, 0);
+            const avg = values.length > 0 ? total / values.length : 0;
+            const max = values.length > 0 ? Math.max(...values) : 0;
+            const min = values.length > 0 ? Math.min(...values) : 0;
+            
+            const suffix = yAxisType === 'quantity' ? '개' : '원';
+            
+            document.getElementById('avgValue').textContent = Math.round(avg).toLocaleString() + suffix;
+            document.getElementById('maxValue').textContent = max.toLocaleString() + suffix;
+            document.getElementById('minValue').textContent = min.toLocaleString() + suffix;
+            document.getElementById('totalValue').textContent = total.toLocaleString() + suffix;
+        }
+        
+        function downloadChart() {
+            if (salesChart) {
+                const link = document.createElement('a');
+                link.download = 'sales_chart_' + new Date().toISOString().slice(0, 10) + '.png';
+                link.href = salesChart.toBase64Image();
+                link.click();
+            }
+        }
+        
+        // 날짜 범위 검증
+        document.getElementById('startDate').addEventListener('change', function() {
+            const startDate = this.value;
+            const endDate = document.getElementById('endDate').value;
+            
+            if (startDate && endDate && startDate > endDate) {
+                alert('시작일은 종료일보다 빠를 수 없습니다.');
+                this.value = '';
+            }
+        });
+        
+        document.getElementById('endDate').addEventListener('change', function() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = this.value;
+            
+            if (startDate && endDate && startDate > endDate) {
+                alert('종료일은 시작일보다 늦어야 합니다.');
+                this.value = '';
+            }
+        });
+    </script>
+</div>
+</html>

@@ -81,6 +81,8 @@ public class CrawlingController {
     }
 
 
+   
+
     @PostMapping("/batch/hottracks")
     public void batchHottracks(@RequestParam String startDate, @RequestParam String endDate) throws Exception {
          hottracksBatchExecutor.executeForDateRange(startDate,endDate);

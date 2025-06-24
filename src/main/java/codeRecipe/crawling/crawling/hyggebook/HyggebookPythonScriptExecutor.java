@@ -259,7 +259,9 @@ public class HyggebookPythonScriptExecutor {
 
 
 
+
     private Long parseLongSafe(String value) {
+
         try {
             return Long.valueOf(value.replace(",", "").trim());
         } catch (NumberFormatException e) {

@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}">
+<head>
+    <title layout:fragment="title">대시보드</title>
+</head>
+
+<div layout:fragment="content">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-2 pb-2 mb-3 border-bottom">
+        <h1 class="h2">
+            <i class="fas fa-tachometer-alt me-2"></i>대시보드
+        </h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <span class="text-muted" th:text="'마지막 업데이트: ' + ${#temporals.format(currentDate, 'yyyy-MM-dd')}"></span>
+        </div>
+    </div>
+
+    <!-- 오늘 매출 요약 -->
+    <div class="row mb-4">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card stats-card shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                오늘 총 매출
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                <span th:text="${#numbers.formatInteger(todaySummary.totalSalesAmount ?: 0, 0, 'COMMA')}">0</span>원
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-won-sign fa-2x text-primary"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card stats-card success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                오늘 실매출
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                <span th:text="${#numbers.formatInteger(todaySummary.totalActualSales ?: 0, 0, 'COMMA')}">0</span>원
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-dollar-sign fa-2x text-success"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card stats-card info shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                오늘 판매 수량
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                <span th:text="${#numbers.formatInteger(todaySummary.totalQuantity ?: 0, 0, 'COMMA')}">0</span>개
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-boxes fa-2x text-info"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card stats-card warning shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                오늘 거래 건수
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                <span th:text="${#numbers.formatInteger(todaySummary.totalRecordCount ?: 0, 0, 'COMMA')}">0</span>건
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-chart-line fa-2x text-warning"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 이번 달 요약 -->
+    <div class="row mb-4">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-calendar-alt me-2"></i>
+                        이번 달 매출 현황 (<span th:text="${monthlySummary.year + '년 ' + monthlySummary.month + '월'}"></span>)
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3 text-center">
+                            <div class="h4 text-primary" th:text="${#numbers.formatInteger(monthlySummary.totalSalesAmount ?: 0, 0, 'COMMA')} + '원'"></div>
+                            <small class="text-muted">총 매출액</small>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="h4 text-success" th:text="${#numbers.formatInteger(monthlySummary.totalActualSales ?: 0, 0, 'COMMA')} + '원'"></div>
+                            <small class="text-muted">실 매출액</small>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="h4 text-info" th:text="${#numbers.formatInteger(monthlySummary.totalQuantity ?: 0, 0, 'COMMA')} + '개'"></div>
+                            <small class="text-muted">판매 수량</small>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="h4 text-warning" th:text="${#numbers.formatInteger(monthlySummary.totalLocationCount ?: 0, 0, 'COMMA')} + '곳'"></div>
+                            <small class="text-muted">판매처 수</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-info-circle me-2"></i>빠른 액션
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="/admin/sales-report" class="btn btn-primary">
+                            <i class="fas fa-chart-bar me-2"></i>매출 상세 조회
+                        </a>
+                        <a href="/admin/sales-report/excel" class="btn btn-success">
+                            <i class="fas fa-download me-2"></i>이번 달 엑셀 다운로드
+                        </a>
+                        <a href="/daily/slack" class="btn btn-info">
+                            <i class="fab fa-slack me-2"></i>일일 리포트 전송
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top 업체별 매출 -->
+    <div class="card shadow">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">
+                <i class="fas fa-trophy me-2"></i>이번 달 Top 5 판매처
+            </h6>
+        </div>
+        <div class="card-body">
+            <div th:if="${#lists.isEmpty(topLocations)}" class="text-center py-5">
+                <i class="fas fa-chart-bar fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">이번 달 매출 데이터가 없습니다.</h5>
+            </div>
+            
+            <div th:unless="${#lists.isEmpty(topLocations)}" class="row">
+                <div th:each="location, iterStat : ${topLocations}" class="col-lg-6 col-xl-4 mb-3">
+                    <div class="card h-100" style="border-left: 4px solid #007bff;">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <h6 class="card-title mb-1" th:text="${location.locationName}"></h6>
+                                    <small class="text-muted" th:text="${location.region}"></small>
+                                </div>
+                                <span class="badge bg-primary" th:text="'#' + ${iterStat.count}"></span>
+                            </div>
+                            
+                            <div class="row text-center">
+                                <div class="col-6">
+                                    <div class="text-xs text-muted mb-1">매출액</div>
+                                    <div class="fw-bold" th:text="${#numbers.formatInteger(location.totalSalesAmount ?: 0, 0, 'COMMA')} + '원'"></div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="text-xs text-muted mb-1">수량</div>
+                                    <div class="fw-bold" th:text="${#numbers.formatInteger(location.totalQuantity ?: 0, 0, 'COMMA')} + '개'"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div layout:fragment="scripts">
+    <script>
+        // 페이지 로드 시 자동 새로고침 설정 (5분마다)
+        setTimeout(function() {
+            location.reload();
+        }, 300000); // 5분 = 300,000ms
+    </script>
+</div>
+</html>

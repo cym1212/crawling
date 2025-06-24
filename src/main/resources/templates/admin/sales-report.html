@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}">
+<head>
+    <title layout:fragment="title">매출 조회</title>
+</head>
+
+<div layout:fragment="content">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-2 pb-2 mb-3 border-bottom">
+        <h1 class="h2">
+            <i class="fas fa-chart-bar me-2"></i>매출 조회
+        </h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <button onclick="downloadExcel()" class="btn btn-success me-2">
+                <i class="fas fa-download me-1"></i>엑셀 다운로드
+            </button>
+            <button onclick="window.print()" class="btn btn-secondary">
+                <i class="fas fa-print me-1"></i>인쇄
+            </button>
+        </div>
+    </div>
+
+    <!-- 검색 및 필터 -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5><i class="fas fa-filter me-2"></i>조회 조건</h5>
+        </div>
+        <div class="card-body">
+            <form method="get" action="/admin/sales-report">
+                <div class="row">
+                    <div class="col-md-3">
+                        <label for="startDate" class="form-label">시작일</label>
+                        <input type="date" class="form-control" id="startDate" name="startDate" 
+                               th:value="${startDate}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="endDate" class="form-label">종료일</label>
+                        <input type="date" class="form-control" id="endDate" name="endDate" 
+                               th:value="${endDate}">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="locationId" class="form-label">판매처</label>
+                        <select class="form-select" id="locationId" name="locationId">
+                            <option value="">전체 판매처</option>
+                            <option th:each="location : ${locations}" 
+                                    th:value="${location.locationId}" 
+                                    th:text="${location.locationName + ' (' + location.region + ')'}"
+                                    th:selected="${location.locationId == selectedLocationId}"></option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-search me-1"></i>조회
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 기간별 요약 통계 -->
+    <div class="row mb-4">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card stats-card shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                총 매출액
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                <span th:text="${#numbers.formatInteger(periodSummary.totalSalesAmount ?: 0, 0, 'COMMA')}">0</span>원
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-won-sign fa-2x text-primary"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card stats-card success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                실 매출액
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                <span th:text="${#numbers.formatInteger(periodSummary.totalActualSales ?: 0, 0, 'COMMA')}">0</span>원
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-dollar-sign fa-2x text-success"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card stats-card info shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                총 판매수량
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                <span th:text="${#numbers.formatInteger(periodSummary.totalQuantity ?: 0, 0, 'COMMA')}">0</span>개
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-boxes fa-2x text-info"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card stats-card warning shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                총 거래건수
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                <span th:text="${#numbers.formatInteger(periodSummary.totalRecordCount ?: 0, 0, 'COMMA')}">0</span>건
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-chart-line fa-2x text-warning"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 매출 데이터 테이블 -->
+    <div class="card shadow">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">
+                <i class="fas fa-table me-2"></i>
+                매출 상세 내역
+                <span th:text="'(' + ${#temporals.format(startDate, 'yyyy-MM-dd')} + ' ~ ' + ${#temporals.format(endDate, 'yyyy-MM-dd')} + ')'"></span>
+            </h6>
+        </div>
+        <div class="card-body">
+            <div th:if="${#lists.isEmpty(pagedSalesData.content)}" class="text-center py-5">
+                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">선택한 조건에 해당하는 매출 데이터가 없습니다.</h5>
+                <p class="text-muted">다른 조건으로 검색해보세요.</p>
+            </div>
+            
+            <div th:unless="${#lists.isEmpty(pagedSalesData.content)}" class="table-responsive">
+                <table class="table table-striped table-hover" id="salesTable">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>판매일</th>
+                            <th>판매처</th>
+                            <th>지역</th>
+                            <th>상품명</th>
+                            <th>상품코드</th>
+                            <th class="text-end">수량</th>
+                            <th class="text-end">매출금액</th>
+                            <th class="text-end">실매출</th>
+                            <th class="text-end">매출원가</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="data : ${pagedSalesData.content}">
+                            <td th:text="${#temporals.format(data.salesDate, 'yyyy-MM-dd')}"></td>
+                            <td th:text="${data.locationName}"></td>
+                            <td th:text="${data.region}"></td>
+                            <td th:text="${data.productName}"></td>
+                            <td th:text="${data.productCode}"></td>
+                            <td class="text-end" th:text="${#numbers.formatInteger(data.quantity ?: 0, 0, 'COMMA')}"></td>
+                            <td class="text-end" th:text="${#numbers.formatInteger(data.salesAmount ?: 0, 0, 'COMMA')} + '원'"></td>
+                            <td class="text-end" th:text="${#numbers.formatInteger(data.actualSales ?: 0, 0, 'COMMA')} + '원'"></td>
+                            <td class="text-end" th:text="${#numbers.formatInteger(data.salesCost ?: 0, 0, 'COMMA')} + '원'"></td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <!-- 페이징 정보 -->
+                <div class="d-flex justify-content-between align-items-center mt-3">
+                    <div>
+                        <span class="text-muted">
+                            총 <strong th:text="${#numbers.formatInteger(pagedSalesData.totalElements, 0, 'COMMA')}"></strong>건 중 
+                            <strong th:text="${pagedSalesData.currentPage * 30 + 1}"></strong>-<strong th:text="${pagedSalesData.currentPage * 30 + pagedSalesData.content.size()}"></strong>건
+                        </span>
+                    </div>
+                    
+                    <!-- 페이징 버튼 -->
+                    <nav th:if="${pagedSalesData.totalPages > 1}">
+                        <ul class="pagination pagination-sm mb-0">
+                            <!-- 이전 페이지 -->
+                            <li class="page-item" th:classappend="${!pagedSalesData.hasPrevious ? 'disabled' : ''}">
+                                <a class="page-link" th:href="@{/admin/sales-report(startDate=${startDate}, endDate=${endDate}, locationId=${selectedLocationId}, page=${pagedSalesData.currentPage - 1})}" 
+                                   th:if="${pagedSalesData.hasPrevious}">이전</a>
+                                <span class="page-link" th:unless="${pagedSalesData.hasPrevious}">이전</span>
+                            </li>
+                            
+                            <!-- 페이지 번호들 -->
+                            <li class="page-item" 
+                                th:each="pageNum : ${#numbers.sequence(T(java.lang.Math).max(0, pagedSalesData.currentPage - 2), T(java.lang.Math).min(pagedSalesData.totalPages - 1, pagedSalesData.currentPage + 2))}"
+                                th:classappend="${pageNum == pagedSalesData.currentPage ? 'active' : ''}">
+                                <a class="page-link" 
+                                   th:href="@{/admin/sales-report(startDate=${startDate}, endDate=${endDate}, locationId=${selectedLocationId}, page=${pageNum})}"
+                                   th:text="${pageNum + 1}"></a>
+                            </li>
+                            
+                            <!-- 다음 페이지 -->
+                            <li class="page-item" th:classappend="${!pagedSalesData.hasNext ? 'disabled' : ''}">
+                                <a class="page-link" th:href="@{/admin/sales-report(startDate=${startDate}, endDate=${endDate}, locationId=${selectedLocationId}, page=${pagedSalesData.currentPage + 1})}" 
+                                   th:if="${pagedSalesData.hasNext}">다음</a>
+                                <span class="page-link" th:unless="${pagedSalesData.hasNext}">다음</span>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div layout:fragment="scripts">
+    <script>
+        function downloadExcel() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            const locationId = document.getElementById('locationId').value;
+            
+            let url = '/admin/sales-report/excel?';
+            if (startDate) url += 'startDate=' + startDate + '&';
+            if (endDate) url += 'endDate=' + endDate + '&';
+            if (locationId) url += 'locationId=' + locationId + '&';
+            
+            window.location.href = url;
+        }
+        
+        // 데이터테이블 초기화 (검색, 정렬, 페이징 기능)
+        document.addEventListener('DOMContentLoaded', function() {
+            const table = document.getElementById('salesTable');
+            if (table && table.querySelector('tbody').children.length > 0) {
+                // 여기서 DataTables 같은 라이브러리를 사용할 수 있습니다
+                // $('#salesTable').DataTable();
+            }
+        });
+        
+        // 날짜 범위 검증
+        document.getElementById('startDate').addEventListener('change', function() {
+            const startDate = this.value;
+            const endDate = document.getElementById('endDate').value;
+            
+            if (startDate && endDate && startDate > endDate) {
+                alert('시작일은 종료일보다 빠를 수 없습니다.');
+                this.value = '';
+            }
+        });
+        
+        document.getElementById('endDate').addEventListener('change', function() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = this.value;
+            
+            if (startDate && endDate && startDate > endDate) {
+                alert('종료일은 시작일보다 늦어야 합니다.');
+                this.value = '';
+            }
+        });
+    </script>
+</div>
+</html>

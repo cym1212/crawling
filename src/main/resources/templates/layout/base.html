@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title layout:title-pattern="$CONTENT_TITLE - $LAYOUT_TITLE">비사이트 매출 관리시스템</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Custom CSS -->
+    <style>
+        .sidebar {
+            position: fixed;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            z-index: 100;
+            padding: 20px 0 0;
+            box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
+            width: 240px;
+            background-color: #f8f9fa;
+        }
+        .main-content {
+            margin-left: 240px;
+            padding: 20px;
+        }
+        @media (max-width: 767.98px) {
+            .sidebar {
+                top: 0;
+            }
+            .main-content {
+                margin-left: 0;
+            }
+        }
+        .sidebar-brand {
+            padding: 15px 20px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #495057;
+            border-bottom: 1px solid #dee2e6;
+            margin-bottom: 10px;
+        }
+        .sidebar .nav-link {
+            color: #495057;
+            padding: 10px 20px;
+        }
+        .sidebar .nav-link:hover {
+            background-color: #e9ecef;
+        }
+        .sidebar .nav-link.active {
+            background-color: #007bff;
+            color: white;
+        }
+        .stats-card {
+            border-left: 4px solid #007bff;
+            transition: transform 0.2s;
+        }
+        .stats-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        .stats-card.success {
+            border-left-color: #28a745;
+        }
+        .stats-card.warning {
+            border-left-color: #ffc107;
+        }
+        .stats-card.danger {
+            border-left-color: #dc3545;
+        }
+        .stats-card.info {
+            border-left-color: #17a2b8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <nav id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block sidebar">
+                <!-- 브랜드명 -->
+                <div class="sidebar-brand">
+                    <i class="fas fa-chart-line me-2"></i>비사이트 매출 관리
+                </div>
+                
+                <div class="position-sticky pt-3">
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link" th:href="@{/admin}" th:classappend="${#strings.equals(currentUri, '/admin') ? 'active' : ''}">
+                                <i class="fas fa-tachometer-alt me-2"></i>대시보드
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" th:href="@{/admin/sales-report}" th:classappend="${#strings.contains(currentUri, '/sales-report') ? 'active' : ''}">
+                                <i class="fas fa-chart-bar me-2"></i>매출 조회
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" th:href="@{/admin/chart}" th:classappend="${#strings.contains(currentUri, '/chart') ? 'active' : ''}">
+                                <i class="fas fa-chart-line me-2"></i>매출 차트
+                            </a>
+                        </li>
+<!--                        <li class="nav-item dropdown">-->
+<!--                            <a class="nav-link dropdown-toggle" href="#" id="crawlingDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">-->
+<!--                                <i class="fas fa-spider me-2"></i>크롤링 관리-->
+<!--                            </a>-->
+<!--                            <ul class="dropdown-menu">-->
+<!--                                <li><a class="dropdown-item" href="/hottracks"><i class="fas fa-play me-2"></i>핫트랙스</a></li>-->
+<!--                                <li><a class="dropdown-item" href="/libro"><i class="fas fa-play me-2"></i>리브로</a></li>-->
+<!--                                <li><a class="dropdown-item" href="/arcnbook"><i class="fas fa-play me-2"></i>아크앤북</a></li>-->
+<!--                                <li><a class="dropdown-item" href="/hyggebook"><i class="fas fa-play me-2"></i>휘게북</a></li>-->
+<!--                            </ul>-->
+<!--                        </li>-->
+<!--                        <li class="nav-item dropdown">-->
+<!--                            <a class="nav-link dropdown-toggle" href="#" id="slackDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">-->
+<!--                                <i class="fab fa-slack me-2"></i>슬랙 전송-->
+<!--                            </a>-->
+<!--                            <ul class="dropdown-menu">-->
+<!--                                <li><a class="dropdown-item" href="/daily/slack"><i class="fas fa-calendar-day me-2"></i>일일 리포트</a></li>-->
+<!--                                <li><a class="dropdown-item" href="/weekly/slack"><i class="fas fa-calendar-week me-2"></i>주간 리포트</a></li>-->
+<!--                            </ul>-->
+<!--                        </li>-->
+                        <li class="nav-item">
+                            <form th:action="@{/logout}" method="post" style="display: inline;">
+                                <button type="submit" class="nav-link btn btn-link text-start" style="border: none; background: none; color: #495057; padding: 10px 20px; width: 100%;">
+                                    <i class="fas fa-sign-out-alt me-2"></i>로그아웃
+                                </button>
+                            </form>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- Main content -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 main-content">
+                <!-- Alert messages -->
+                <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
+                    <i class="fas fa-check-circle me-2"></i>
+                    <span th:text="${successMessage}"></span>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                
+                <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    <span th:text="${errorMessage}"></span>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                
+                <!-- Page content -->
+                <div layout:fragment="content"></div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Page specific scripts -->
+    <div layout:fragment="scripts"></div>
+</body>
+</html>
