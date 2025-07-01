@@ -9,13 +9,17 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            margin-top: 50px;
+            margin-top: 40px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 40px;
+            border-radius: 20px;
         }
         
         .wheel-container {
             position: relative;
-            width: 400px;
-            height: 400px;
+            width: 450px;
+            height: 450px;
+            filter: drop-shadow(0 0 30px rgba(0,0,0,0.3));
         }
         
         .wheel {
@@ -24,9 +28,10 @@
             border-radius: 50%;
             position: relative;
             overflow: hidden;
-            border: 5px solid #333;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            border: 8px solid #fff;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.2);
             transition: transform 3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            background: #f0f0f0;
         }
         
         .wheel-segment {
@@ -34,56 +39,121 @@
             width: 50%;
             height: 50%;
             transform-origin: right bottom;
+            overflow: hidden;
+            box-shadow: inset -2px -2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .segment-content {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
         }
         
         .wheel-text {
             position: absolute;
-            font-weight: bold;
-            font-size: 14px;
-            white-space: nowrap;
-            color: white;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            font-weight: 600;
+            font-size: 16px;
+            color: #fff;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            text-align: center;
+            max-width: 120px;
+            word-wrap: break-word;
+            line-height: 1.2;
+            transform-origin: center;
         }
         
         .pointer {
             position: absolute;
-            top: -30px;
+            top: -40px;
             left: 50%;
             transform: translateX(-50%);
             width: 0;
             height: 0;
-            border-left: 20px solid transparent;
-            border-right: 20px solid transparent;
-            border-top: 40px solid #dc3545;
+            border-left: 25px solid transparent;
+            border-right: 25px solid transparent;
+            border-top: 50px solid #e74c3c;
             z-index: 10;
+            filter: drop-shadow(0 5px 10px rgba(0,0,0,0.3));
+        }
+        
+        .pointer::after {
+            content: '';
+            position: absolute;
+            top: -50px;
+            left: -15px;
+            width: 30px;
+            height: 30px;
+            background: #c0392b;
+            border-radius: 50%;
+        }
+        
+        .wheel-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50%;
+            border: 5px solid #fff;
+            box-shadow: 0 0 20px rgba(0,0,0,0.3);
+            z-index: 5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+            font-size: 24px;
         }
         
         .spin-button {
-            margin-top: 50px;
-            padding: 15px 40px;
-            font-size: 20px;
-            background-color: #28a745;
+            margin-top: 40px;
+            padding: 18px 50px;
+            font-size: 22px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            border-radius: 5px;
+            border-radius: 50px;
             cursor: pointer;
-            transition: background-color 0.3s;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
         
-        .spin-button:hover {
-            background-color: #218838;
+        .spin-button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 7px 25px rgba(102, 126, 234, 0.5);
+        }
+        
+        .spin-button:active:not(:disabled) {
+            transform: translateY(0);
         }
         
         .spin-button:disabled {
-            background-color: #6c757d;
+            background: linear-gradient(135deg, #bdc3c7 0%, #95a5a6 100%);
             cursor: not-allowed;
+            box-shadow: none;
         }
         
         .result-display {
             margin-top: 30px;
-            font-size: 24px;
+            font-size: 28px;
             font-weight: bold;
-            color: #333;
+            color: #2c3e50;
+            padding: 20px 40px;
+            background: rgba(255,255,255,0.9);
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            min-height: 70px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         
         .excel-upload {
@@ -94,6 +164,46 @@
             margin-top: 20px;
             max-height: 200px;
             overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #667eea #f0f0f0;
+        }
+        
+        .participant-list::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .participant-list::-webkit-scrollbar-track {
+            background: #f0f0f0;
+            border-radius: 4px;
+        }
+        
+        .participant-list::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 4px;
+        }
+        
+        @keyframes confetti {
+            0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(300px) rotate(720deg); opacity: 0; }
+        }
+        
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            animation: confetti 3s ease-out;
+            pointer-events: none;
+        }
+        
+        @keyframes fadeInScale {
+            0% {
+                opacity: 0;
+                transform: scale(0.5);
+            }
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
         }
     </style>
 </head>
@@ -147,11 +257,16 @@
                 <div class="wheel-container">
                     <div class="pointer"></div>
                     <div class="wheel" id="wheel"></div>
+                    <div class="wheel-center">
+                        <i class="fas fa-star"></i>
+                    </div>
                 </div>
                 <button class="spin-button" id="spinButton" onclick="spinWheel()" disabled>
-                    <i class="fas fa-play me-2"></i>룰렛 돌리기
+                    <i class="fas fa-sync-alt me-2"></i>룰렛 돌리기
                 </button>
-                <div class="result-display" id="result"></div>
+                <div class="result-display" id="result">
+                    <span style="color: #95a5a6;">엑셀 파일을 업로드하면 룰렛이 생성됩니다</span>
+                </div>
             </div>
         </div>
     </div>
@@ -240,27 +355,58 @@
             const segment = document.createElement('div');
             segment.className = 'wheel-segment';
             segment.style.transform = `rotate(${index * segmentAngle}deg)`;
-            segment.style.clipPath = `polygon(0 100%, 50% 50%, ${Math.cos((segmentAngle * Math.PI) / 180) * 100}% ${100 - Math.sin((segmentAngle * Math.PI) / 180) * 100}%)`;
+            
+            // 파이 조각 모양 생성
+            const angleRad = (segmentAngle * Math.PI) / 180;
+            const x = Math.cos(angleRad) * 100;
+            const y = 100 - Math.sin(angleRad) * 100;
+            segment.style.clipPath = `polygon(100% 100%, 50% 50%, ${x}% ${y}%)`;
             segment.style.backgroundColor = colors[index];
             
-            // 텍스트 추가
+            // 텍스트 컨테이너와 텍스트 추가
+            const textContainer = document.createElement('div');
+            textContainer.className = 'segment-content';
+            
             const text = document.createElement('div');
             text.className = 'wheel-text';
             text.textContent = participant;
-            text.style.transform = `rotate(${segmentAngle / 2}deg) translateX(100px)`;
-            segment.appendChild(text);
             
+            // 텍스트 위치 계산 (각 섹션의 중앙)
+            const textAngle = segmentAngle / 2;
+            const textRadius = 140; // 중심에서의 거리
+            const textX = Math.cos((textAngle - 90) * Math.PI / 180) * textRadius;
+            const textY = Math.sin((textAngle - 90) * Math.PI / 180) * textRadius;
+            
+            text.style.transform = `translate(${textX}px, ${textY}px) rotate(${textAngle}deg)`;
+            
+            segment.appendChild(text);
             wheel.appendChild(segment);
         });
     }
     
-    // 색상 생성
+    // 개선된 색상 생성
     function generateColors(count) {
         const colors = [];
+        const colorPalettes = [
+            ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E2'],
+            ['#E74C3C', '#3498DB', '#2ECC71', '#F39C12', '#9B59B6', '#1ABC9C', '#E67E22', '#34495E'],
+            ['#FF5252', '#536DFE', '#00BCD4', '#4CAF50', '#FFEB3B', '#FF9800', '#9C27B0', '#795548']
+        ];
+        
+        // 랜덤하게 색상 팔레트 선택
+        const palette = colorPalettes[Math.floor(Math.random() * colorPalettes.length)];
+        
         for (let i = 0; i < count; i++) {
-            const hue = (i * 360) / count;
-            colors.push(`hsl(${hue}, 70%, 50%)`);
+            // 팔레트에서 순환하며 색상 선택
+            colors.push(palette[i % palette.length]);
         }
+        
+        // 색상 순서를 섞어서 더 다양하게
+        for (let i = colors.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [colors[i], colors[j]] = [colors[j], colors[i]];
+        }
+        
         return colors;
     }
     
@@ -286,10 +432,45 @@
             const winnerIndex = Math.floor(normalizedAngle / segmentAngle);
             const winner = participants[winnerIndex];
             
-            document.getElementById('result').innerHTML = `<i class="fas fa-trophy me-2 text-warning"></i>당첨자: ${winner}`;
+            // 당첨 효과
+            showWinnerEffect(winner);
             document.getElementById('spinButton').disabled = false;
             isSpinning = false;
         }, 3000);
+    }
+    
+    // 당첨자 효과 표시
+    function showWinnerEffect(winner) {
+        const resultDiv = document.getElementById('result');
+        resultDiv.innerHTML = `
+            <div style="animation: fadeInScale 0.5s ease-out">
+                <i class="fas fa-trophy me-2" style="color: #FFD700; font-size: 36px;"></i>
+                <span style="font-size: 32px; color: #2c3e50;">당첨자: <strong>${winner}</strong></span>
+            </div>
+        `;
+        
+        // 색종이 효과 추가
+        createConfetti();
+    }
+    
+    // 색종이 효과 생성
+    function createConfetti() {
+        const container = document.querySelector('.roulette-container');
+        const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E2'];
+        
+        for (let i = 0; i < 50; i++) {
+            const confetti = document.createElement('div');
+            confetti.className = 'confetti';
+            confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+            confetti.style.left = Math.random() * 100 + '%';
+            confetti.style.animationDelay = Math.random() * 1 + 's';
+            confetti.style.animationDuration = (Math.random() * 2 + 2) + 's';
+            
+            container.appendChild(confetti);
+            
+            // 애니메이션 후 제거
+            setTimeout(() => confetti.remove(), 4000);
+        }
     }
     </script>
 </div>
