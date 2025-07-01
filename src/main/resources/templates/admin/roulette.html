@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}">
+<head>
+    <title layout:fragment="title">엑셀 룰렛</title>
+    <style>
+        .roulette-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin-top: 50px;
+        }
+        
+        .wheel-container {
+            position: relative;
+            width: 400px;
+            height: 400px;
+        }
+        
+        .wheel {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            position: relative;
+            overflow: hidden;
+            border: 5px solid #333;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            transition: transform 3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+        
+        .wheel-segment {
+            position: absolute;
+            width: 50%;
+            height: 50%;
+            transform-origin: right bottom;
+        }
+        
+        .wheel-text {
+            position: absolute;
+            font-weight: bold;
+            font-size: 14px;
+            white-space: nowrap;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+        
+        .pointer {
+            position: absolute;
+            top: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 20px solid transparent;
+            border-right: 20px solid transparent;
+            border-top: 40px solid #dc3545;
+            z-index: 10;
+        }
+        
+        .spin-button {
+            margin-top: 50px;
+            padding: 15px 40px;
+            font-size: 20px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        .spin-button:hover {
+            background-color: #218838;
+        }
+        
+        .spin-button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        .result-display {
+            margin-top: 30px;
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .excel-upload {
+            margin-bottom: 30px;
+        }
+        
+        .participant-list {
+            margin-top: 20px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+
+<div layout:fragment="content">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-2 pb-2 mb-3 border-bottom">
+        <h1 class="h2">
+            <i class="fas fa-dice me-2"></i>엑셀 룰렛
+        </h1>
+    </div>
+
+    <!-- 엑셀 업로드 섹션 -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5><i class="fas fa-file-excel me-2"></i>엑셀 파일 업로드</h5>
+        </div>
+        <div class="card-body excel-upload">
+            <form id="excelUploadForm">
+                <div class="row">
+                    <div class="col-md-6">
+                        <label for="excelFile" class="form-label">엑셀 파일 선택</label>
+                        <input type="file" class="form-control" id="excelFile" accept=".xlsx,.xls" required>
+                        <small class="text-muted">ID 컬럼이 포함된 엑셀 파일을 업로드하세요.</small>
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-upload me-1"></i>업로드
+                        </button>
+                    </div>
+                </div>
+            </form>
+            
+            <!-- 참가자 목록 표시 -->
+            <div id="participantContainer" style="display: none;">
+                <hr class="my-3">
+                <h6><i class="fas fa-users me-2"></i>참가자 목록 (<span id="participantCount">0</span>명)</h6>
+                <div class="participant-list border rounded p-2">
+                    <ul id="participantList" class="list-unstyled mb-0"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 룰렛 섹션 -->
+    <div class="card">
+        <div class="card-header">
+            <h5><i class="fas fa-circle-notch me-2"></i>룰렛</h5>
+        </div>
+        <div class="card-body">
+            <div class="roulette-container">
+                <div class="wheel-container">
+                    <div class="pointer"></div>
+                    <div class="wheel" id="wheel"></div>
+                </div>
+                <button class="spin-button" id="spinButton" onclick="spinWheel()" disabled>
+                    <i class="fas fa-play me-2"></i>룰렛 돌리기
+                </button>
+                <div class="result-display" id="result"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div layout:fragment="scripts">
+    <!-- SheetJS library for Excel file reading -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <script th:inline="javascript">
+    let participants = [];
+    let isSpinning = false;
+    let currentRotation = 0;
+    
+    // 엑셀 파일 읽기
+    document.getElementById('excelUploadForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const fileInput = document.getElementById('excelFile');
+        const file = fileInput.files[0];
+        
+        if (!file) {
+            alert('파일을 선택해주세요.');
+            return;
+        }
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type: 'array'});
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                
+                console.log('Excel data:', jsonData); // 디버깅용
+                
+                // ID 컬럼 추출
+                participants = jsonData.map(row => {
+                    return row.ID || row.id || row.Id || row.아이디 || Object.values(row)[0];
+                }).filter(id => id && id.toString().trim() !== '');
+                
+                console.log('Participants:', participants); // 디버깅용
+                
+                if (participants.length === 0) {
+                    alert('엑셀 파일에서 ID를 찾을 수 없습니다.');
+                    return;
+                }
+                
+                displayParticipants();
+                createWheel();
+                document.getElementById('spinButton').disabled = false;
+            } catch (error) {
+                console.error('Error:', error); // 디버깅용
+                alert('엑셀 파일을 읽는 중 오류가 발생했습니다: ' + error.message);
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    });
+    
+    // 참가자 목록 표시
+    function displayParticipants() {
+        const container = document.getElementById('participantContainer');
+        const list = document.getElementById('participantList');
+        const count = document.getElementById('participantCount');
+        
+        list.innerHTML = '';
+        participants.forEach((participant, index) => {
+            const li = document.createElement('li');
+            li.textContent = `${index + 1}. ${participant}`;
+            list.appendChild(li);
+        });
+        
+        count.textContent = participants.length;
+        container.style.display = 'block';
+    }
+    
+    // 룰렛 생성
+    function createWheel() {
+        const wheel = document.getElementById('wheel');
+        wheel.innerHTML = '';
+        
+        const segmentAngle = 360 / participants.length;
+        const colors = generateColors(participants.length);
+        
+        participants.forEach((participant, index) => {
+            const segment = document.createElement('div');
+            segment.className = 'wheel-segment';
+            segment.style.transform = `rotate(${index * segmentAngle}deg)`;
+            segment.style.clipPath = `polygon(0 100%, 50% 50%, ${Math.cos((segmentAngle * Math.PI) / 180) * 100}% ${100 - Math.sin((segmentAngle * Math.PI) / 180) * 100}%)`;
+            segment.style.backgroundColor = colors[index];
+            
+            // 텍스트 추가
+            const text = document.createElement('div');
+            text.className = 'wheel-text';
+            text.textContent = participant;
+            text.style.transform = `rotate(${segmentAngle / 2}deg) translateX(100px)`;
+            segment.appendChild(text);
+            
+            wheel.appendChild(segment);
+        });
+    }
+    
+    // 색상 생성
+    function generateColors(count) {
+        const colors = [];
+        for (let i = 0; i < count; i++) {
+            const hue = (i * 360) / count;
+            colors.push(`hsl(${hue}, 70%, 50%)`);
+        }
+        return colors;
+    }
+    
+    // 룰렛 돌리기
+    function spinWheel() {
+        if (isSpinning || participants.length === 0) return;
+        
+        isSpinning = true;
+        document.getElementById('spinButton').disabled = true;
+        document.getElementById('result').textContent = '';
+        
+        const wheel = document.getElementById('wheel');
+        const spins = Math.floor(Math.random() * 5) + 5; // 5-10 바퀴
+        const randomAngle = Math.random() * 360;
+        const totalRotation = currentRotation + (spins * 360) + randomAngle;
+        
+        wheel.style.transform = `rotate(${totalRotation}deg)`;
+        currentRotation = totalRotation;
+        
+        setTimeout(() => {
+            const normalizedAngle = (360 - (totalRotation % 360)) % 360;
+            const segmentAngle = 360 / participants.length;
+            const winnerIndex = Math.floor(normalizedAngle / segmentAngle);
+            const winner = participants[winnerIndex];
+            
+            document.getElementById('result').innerHTML = `<i class="fas fa-trophy me-2 text-warning"></i>당첨자: ${winner}`;
+            document.getElementById('spinButton').disabled = false;
+            isSpinning = false;
+        }, 3000);
+    }
+    </script>
+</div>
+
+</html>

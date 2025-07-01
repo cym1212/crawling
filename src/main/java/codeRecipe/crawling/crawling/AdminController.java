@@ -198,4 +198,10 @@ public class AdminController {
                 .headers(headers)
                 .body(excelData);
     }
+    
+    @GetMapping("/roulette")
+    public String roulette(Model model, HttpServletRequest request) {
+        model.addAttribute("currentUri", request.getRequestURI());
+        return "admin/roulette";
+    }
 }
