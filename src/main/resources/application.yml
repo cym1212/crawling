@@ -10,6 +10,7 @@ spring:
       - classpath:application-arcnbook.yml
       - classpath:application-slack-webhook.yml
       - classpath:application-hyggebook.yml
+      - classpath:application-yeongpoong.yml
   servlet:
     multipart:
       maxFileSize: 10MB

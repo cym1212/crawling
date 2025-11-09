@@ -5,9 +5,11 @@ import codeRecipe.crawling.crawling.batch.ArcnbookBatchExecutor;
 import codeRecipe.crawling.crawling.batch.HottracksBatchExecutor;
 import codeRecipe.crawling.crawling.batch.HyggebookBatchExecutor;
 import codeRecipe.crawling.crawling.batch.LibroBatchExecutor;
+import codeRecipe.crawling.crawling.batch.YeongpoongBatchExecutor;
 import codeRecipe.crawling.crawling.hottracks.HottracksPythonScriptExecutor;
 import codeRecipe.crawling.crawling.hyggebook.HyggebookPythonScriptExecutor;
 import codeRecipe.crawling.crawling.libro.LibroPythonScriptExecutor;
+import codeRecipe.crawling.crawling.yeongpoong.YeongpoongPythonScriptExecutor;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.core.io.ResourceLoader;
@@ -31,12 +33,14 @@ public class CrawlingController {
     private final LibroPythonScriptExecutor libroPythonScriptExecutor;
     private final ArcnbookPythonScriptExecutor arcnbookPythonScriptExecutor;
     private final HyggebookPythonScriptExecutor hyggebookPythonScriptExecutor;
+    private final YeongpoongPythonScriptExecutor yeongpoongPythonScriptExecutor;
     private final SlackWebhookService slackWebhookService;
     private final DataProcessingService dataProcessingService;
     private final HottracksBatchExecutor hottracksBatchExecutor;
     private final ArcnbookBatchExecutor arcnbookBatchExecutor;
     private final LibroBatchExecutor libroBatchExecutor;
     private final HyggebookBatchExecutor hyggebookBatchExecutor;
+    private final YeongpoongBatchExecutor yeongpoongBatchExecutor;
 
     @PostMapping("/hottracks")
     public String  hottracks() throws Exception {
@@ -59,6 +63,12 @@ public class CrawlingController {
     public String  hyggebook() throws Exception {
 
         return hyggebookPythonScriptExecutor.excutePythonScript();
+    }
+
+    @PostMapping("/yeongpoong")
+    public String  yeongpoong() throws Exception {
+
+        return yeongpoongPythonScriptExecutor.excutePythonScript();
     }
 
     @PostMapping("/daily/slack")
@@ -98,6 +108,11 @@ public class CrawlingController {
     @PostMapping("/batch/hygge")
     public void batchHygge(@RequestParam String startDate, @RequestParam String endDate) throws Exception {
          hyggebookBatchExecutor.executeForDateRange(startDate,endDate);
+    }
+
+    @PostMapping("/batch/yeongpoong")
+    public void batchYeongpoong(@RequestParam String startDate, @RequestParam String endDate) throws Exception {
+         yeongpoongBatchExecutor.executeForDateRange(startDate,endDate);
     }
 
 
