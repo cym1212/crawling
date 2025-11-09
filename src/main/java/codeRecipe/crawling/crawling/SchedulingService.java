@@ -28,13 +28,13 @@ public class SchedulingService {
     public void executeScheduledTask1() {
         try {
             String hottracks = hottracksPythonScriptExecutor.excutePythonScript();
-            String libro = libroPythonScriptExecutor.excutePythonScript();
+//            String libro = libroPythonScriptExecutor.excutePythonScript();
             String arcnbook = arcnbookPythonScriptExecutor.excutePythonScript();
             String hyggebook = hyggebookPythonScriptExecutor.excutePythonScript();
             String yeongpoong = yeongpoongPythonScriptExecutor.excutePythonScript();
 
             System.out.println("Success: " + hottracks);
-            System.out.println("Success: " + libro);
+//            System.out.println("Success: " + libro);
             System.out.println("Success: " + arcnbook);
             System.out.println("Success: " + hyggebook);
             System.out.println("Success: " + yeongpoong);
@@ -48,13 +48,13 @@ public class SchedulingService {
     public void executeScheduledTask2() {
         try {
             String hottracks = hottracksPythonScriptExecutor.excutePythonScript();
-            String libro = libroPythonScriptExecutor.excutePythonScript();
+//            String libro = libroPythonScriptExecutor.excutePythonScript();
             String arcnbook = arcnbookPythonScriptExecutor.excutePythonScript();
             String hyggebook = hyggebookPythonScriptExecutor.excutePythonScript();
             String yeongpoong = yeongpoongPythonScriptExecutor.excutePythonScript();
 
             System.out.println("Success: " + hottracks);
-            System.out.println("Success: " + libro);
+//            System.out.println("Success: " + libro);
             System.out.println("Success: " + arcnbook);
             System.out.println("Success: " + hyggebook);
             System.out.println("Success: " + yeongpoong);
@@ -68,13 +68,13 @@ public class SchedulingService {
     public void executeScheduledTask3() {
         try {
             String hottracks = hottracksPythonScriptExecutor.excutePythonScript();
-            String libro = libroPythonScriptExecutor.excutePythonScript();
+//            String libro = libroPythonScriptExecutor.excutePythonScript();
             String arcnbook = arcnbookPythonScriptExecutor.excutePythonScript();
             String hyggebook = hyggebookPythonScriptExecutor.excutePythonScript();
             String yeongpoong = yeongpoongPythonScriptExecutor.excutePythonScript();
 
             System.out.println("Success: " + hottracks);
-            System.out.println("Success: " + libro);
+//            System.out.println("Success: " + libro);
             System.out.println("Success: " + arcnbook);
             System.out.println("Success: " + hyggebook);
             System.out.println("Success: " + yeongpoong);
@@ -88,13 +88,13 @@ public class SchedulingService {
     public void executeScheduledTask4() {
         try {
             String hottracks = hottracksPythonScriptExecutor.excutePythonScript();
-            String libro = libroPythonScriptExecutor.excutePythonScript();
+//            String libro = libroPythonScriptExecutor.excutePythonScript();
             String arcnbook = arcnbookPythonScriptExecutor.excutePythonScript();
             String hyggebook = hyggebookPythonScriptExecutor.excutePythonScript();
             String yeongpoong = yeongpoongPythonScriptExecutor.excutePythonScript();
 
             System.out.println("Success: " + hottracks);
-            System.out.println("Success: " + libro);
+//            System.out.println("Success: " + libro);
             System.out.println("Success: " + arcnbook);
             System.out.println("Success: " + hyggebook);
             System.out.println("Success: " + yeongpoong);
@@ -108,13 +108,13 @@ public class SchedulingService {
     public void executeScheduledTask5() {
         try {
             String hottracks = hottracksPythonScriptExecutor.excutePythonScript();
-            String libro = libroPythonScriptExecutor.excutePythonScript();
+//            String libro = libroPythonScriptExecutor.excutePythonScript();
             String arcnbook = arcnbookPythonScriptExecutor.excutePythonScript();
             String hyggebook = hyggebookPythonScriptExecutor.excutePythonScript();
             String yeongpoong = yeongpoongPythonScriptExecutor.excutePythonScript();
 
             System.out.println("Success: " + hottracks);
-            System.out.println("Success: " + libro);
+//            System.out.println("Success: " + libro);
             System.out.println("Success: " + arcnbook);
             System.out.println("Success: " + hyggebook);
             System.out.println("Success: " + yeongpoong);

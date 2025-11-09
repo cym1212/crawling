@@ -48,11 +48,11 @@ public class CrawlingController {
         return hottracksPythonScriptExecutor.excutePythonScript();
     }
 
-    @PostMapping("/libro")
-    public String  libro() throws Exception {
-
-        return libroPythonScriptExecutor.excutePythonScript();
-    }
+//    @PostMapping("/libro")
+//    public String  libro() throws Exception {
+//
+//        return libroPythonScriptExecutor.excutePythonScript();
+//    }
 
     @PostMapping("/arcnbook")
     public String  arcnbook() throws Exception {
@@ -97,10 +97,10 @@ public class CrawlingController {
     public void batchHottracks(@RequestParam String startDate, @RequestParam String endDate) throws Exception {
          hottracksBatchExecutor.executeForDateRange(startDate,endDate);
     }
-    @PostMapping("/batch/libro")
-    public void batchLibro(@RequestParam String startDate, @RequestParam String endDate) throws Exception {
-         libroBatchExecutor.executeForDateRange(startDate,endDate);
-    }
+//    @PostMapping("/batch/libro")
+//    public void batchLibro(@RequestParam String startDate, @RequestParam String endDate) throws Exception {
+//         libroBatchExecutor.executeForDateRange(startDate,endDate);
+//    }
     @PostMapping("/batch/arcnbook")
     public void batchArcnbook(@RequestParam String startDate, @RequestParam String endDate) throws Exception {
          arcnbookBatchExecutor.executeForDateRange(startDate,endDate);
