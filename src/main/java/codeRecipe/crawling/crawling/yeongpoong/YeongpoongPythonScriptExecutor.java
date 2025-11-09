@@ -133,9 +133,9 @@ public class YeongpoongPythonScriptExecutor {
 
            Long quantity = parseLongSafe(record.get("SALQTY").asText());  // 판매수량
            Long salesAmount = parseLongSafe(record.get("TOTAL").asText());  // 매출금액
-           Long netSales = parseLongSafe(record.get("SALAMT").asText());  // 순매출
-           Long vat = parseLongSafe(record.get("ADDTAX").asText());  // 부가세
-           Long discount = parseLongSafe(record.get("DICAMT").asText());  // 할인금액
+           Long salesCost = parseLongSafe(record.get("SALAMT").asText());  // 순매출 → sales_cost에 저장
+           Long salesPrice = parseLongSafe(record.get("NOR_PRC").asText());  // 평균판매단가 → sales_price에 저장
+           // ADDTAX (부가세), DICAMT (할인금액)는 저장하지 않음
 
            // SalesLocation 처리
            SalesLocation salesLocation = salesLocationRepository.findByLocationNameAndRegion("Yeongpoong", wname)
@@ -182,8 +182,8 @@ public class YeongpoongPythonScriptExecutor {
                    .salesDate(getTargetDate())
                    .quantity(quantity)
                    .salesAmount(salesAmount)
-                   .actualSales(netSales)
-                   .salesCost(vat)  // 부가세를 salesCost로 매핑
+                   .salesCost(salesCost)  // 순매출을 salesCost에 저장
+                   .salesPrice(salesPrice)  // 평균판매단가를 salesPrice에 저장
                    .createdAt(LocalDate.now())
                    .build();
            salesRecordRepository.save(newRecord);

@@ -41,7 +41,7 @@ def activate_and_run():
 # Selenium으로 로그인 및 데이터 조회
 def selenium_login_and_scrape(login_url, username, password, start_date, end_date):
     options = webdriver.ChromeOptions()
-#     options.add_argument('--headless')
+    options.add_argument('--headless')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-popup-blocking')
