@@ -36,6 +36,7 @@ public class CrawlingController {
     private final YeongpoongPythonScriptExecutor yeongpoongPythonScriptExecutor;
     private final SlackWebhookService slackWebhookService;
     private final DataProcessingService dataProcessingService;
+    private final SchedulingService schedulingService;
     private final HottracksBatchExecutor hottracksBatchExecutor;
     private final ArcnbookBatchExecutor arcnbookBatchExecutor;
     private final LibroBatchExecutor libroBatchExecutor;
@@ -71,6 +72,12 @@ public class CrawlingController {
         return yeongpoongPythonScriptExecutor.excutePythonScript();
     }
 
+    @PostMapping("/crawling/all")
+    public String executeCrawlingAll() {
+        schedulingService.executeCrawlingWithErrorTracking();
+        return "전체 크롤링 실행 완료. /daily/test 엔드포인트에서 결과를 확인하세요.";
+    }
+
     @PostMapping("/daily/slack")
     public void sendMessageToSlackDaily() {
         slackWebhookService.sendMessageToSlackDailyData();
@@ -83,7 +90,21 @@ public class CrawlingController {
 
     @GetMapping("/daily/test")
     public String  dailyTest() throws Exception {
-        return dataProcessingService.dailyDataProcessing();
+        StringBuilder result = new StringBuilder();
+
+        // 크롤링 실패 목록 확인 및 추가
+        java.util.List<String> failures = schedulingService.getLastCrawlingFailures();
+        if (!failures.isEmpty()) {
+            result.append("⚠️ 크롤링 오류 발생\n");
+            result.append(String.join(", ", failures));
+            result.append(" 사이트에서 오류가 발생했습니다.\n\n");
+            result.append("---\n\n");
+        }
+
+        // 정상 데이터 처리 결과 추가
+        result.append(dataProcessingService.dailyDataProcessing());
+
+        return result.toString();
     }
     @GetMapping("/weekly/test")
     public String  weeklyTest() throws Exception {

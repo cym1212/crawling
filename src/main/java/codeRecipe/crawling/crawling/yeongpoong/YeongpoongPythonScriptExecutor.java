@@ -113,14 +113,21 @@ public class YeongpoongPythonScriptExecutor {
        ObjectMapper objectMapper = new ObjectMapper();
        JsonNode rootNode = objectMapper.readTree(jsonData);
 
+       // Python 스크립트에서 에러를 반환한 경우 체크
+       if (rootNode.has("error")) {
+           String errorMessage = rootNode.get("error").asText();
+           log.error("영풍문고 크롤링 실패: {}", errorMessage);
+           throw new RuntimeException("영풍문고 크롤링 실패: " + errorMessage);
+       }
+
        // locations 배열 가져오기
        JsonNode locationsNode = rootNode.get("locations");
        // data 배열 가져오기 (각 항목은 영풍문고 데이터 형식)
        JsonNode dataNode = rootNode.get("data");
 
        if (dataNode == null || !dataNode.isArray()) {
-           log.error("데이터 형식이 올바르지 않습니다.");
-           return;
+           log.error("영풍문고 응답 형식 오류: data 필드가 배열이 아닙니다");
+           throw new RuntimeException("영풍문고 응답 형식 오류");
        }
 
        // 각 데이터 레코드 처리

@@ -123,6 +123,25 @@ public class ArcnbookPythonScriptExecutor {
             throw new RuntimeException("Error parsing JSON response", e);
         }
 
+        // Python 스크립트에서 에러를 반환한 경우 체크
+        if (rootNode.has("error")) {
+            String errorMessage = rootNode.get("error").asText();
+            logger.error("아크앤북 크롤링 실패: {}", errorMessage);
+            throw new RuntimeException("아크앤북 크롤링 실패: " + errorMessage);
+        }
+
+        // locations 필드가 없는 경우 체크
+        if (!rootNode.has("locations") || rootNode.get("locations") == null) {
+            logger.error("아크앤북 응답 형식 오류 - locations 필드 없음: {}", rawData);
+            throw new RuntimeException("아크앤북 응답 형식 오류: locations 필드 없음");
+        }
+
+        // data 필드가 없는 경우 체크
+        if (!rootNode.has("data") || rootNode.get("data") == null) {
+            logger.error("아크앤북 응답 형식 오류 - data 필드 없음: {}", rawData);
+            throw new RuntimeException("아크앤북 응답 형식 오류: data 필드 없음");
+        }
+
         List<String> locations = new ArrayList<>();
         for (JsonNode locationNode : rootNode.get("locations")) {
             locations.add(locationNode.asText());

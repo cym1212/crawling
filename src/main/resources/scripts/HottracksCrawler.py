@@ -92,10 +92,22 @@ def selenium_login_and_scrape_by_branch(login_url, target_url, username, passwor
 
         # 로그인 단계
         try:
+            # 페이지 로딩 대기
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.ID, "j_username"))
+            )
+
             driver.find_element(By.ID, "j_username").send_keys(username)
             driver.find_element(By.ID, "j_password").send_keys(password)
-            driver.find_element(By.ID, "j_password").send_keys(Keys.RETURN)
-        except NoSuchElementException as e:
+
+            # 로그인 버튼 클릭 (Enter 키 대신 실제 버튼 클릭)
+            login_button = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.ID, "loginLink"))
+            )
+            login_button.click()
+
+        except (NoSuchElementException, TimeoutException) as e:
+            log_error(f"로그인 요소를 찾을 수 없습니다: {str(e)}")
             return {"error": "Login elements not found\n"}
 
         # Alert 처리

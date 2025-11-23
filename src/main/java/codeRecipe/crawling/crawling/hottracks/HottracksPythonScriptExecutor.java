@@ -132,6 +132,18 @@ public class HottracksPythonScriptExecutor {
        ObjectMapper objectMapper = new ObjectMapper();
        JsonNode rootNode = objectMapper.readTree(jsonData);
 
+       // Python 스크립트에서 에러를 반환한 경우 체크
+       if (rootNode.has("error")) {
+           String errorMessage = rootNode.get("error").asText();
+           log.error("핫트랙스 크롤링 실패: {}", errorMessage);
+           throw new RuntimeException("핫트랙스 크롤링 실패: " + errorMessage);
+       }
+
+       // 데이터가 배열이 아닌 경우 체크
+       if (!rootNode.isArray()) {
+           log.error("핫트랙스 응답 형식 오류: 배열이 아닙니다");
+           throw new RuntimeException("핫트랙스 응답 형식 오류");
+       }
 
        for (JsonNode locationNode : rootNode) {
            JsonNode rows = locationNode.get("data").get("rows");
