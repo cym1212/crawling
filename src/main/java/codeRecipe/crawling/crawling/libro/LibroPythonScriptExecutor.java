@@ -52,7 +52,7 @@ public class LibroPythonScriptExecutor {
     private final SalesRecordRepository salesRecordRepository;
     private final SalesLocationRepository salesLocationRepository;
 
-    LocalDate targetDate = LocalDate.now().minusDays(1);
+    LocalDate targetDate = null;
     private static final Logger logger = LoggerFactory.getLogger(LibroPythonScriptExecutor.class);
 
 //    String[] LibroRegion = {"수원점", "상봉점", "시흥점", "기흥점", "원주점", "분당수내점", "구로점(NC)", "광명점", "광양점"};
@@ -261,10 +261,8 @@ public class LibroPythonScriptExecutor {
         }
     }
 
-    // todo 기간별 데이터 수집할때는 수정해야함
     public LocalDate getTargetDate() {
-        return LocalDate.now().minusDays(1);
-//        return targetDate;
+        return targetDate != null ? targetDate : LocalDate.now().minusDays(1);
     }
 
     public void setTargetDate(LocalDate targetDate) {

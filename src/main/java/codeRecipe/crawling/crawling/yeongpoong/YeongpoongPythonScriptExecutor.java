@@ -41,7 +41,7 @@ public class YeongpoongPythonScriptExecutor {
    private final SalesRecordRepository salesRecordRepository;
    private final SalesLocationRepository salesLocationRepository;
 
-   LocalDate targetDate = LocalDate.now().minusDays(1);
+   LocalDate targetDate = null;
 
    private String getPythonPath() {
        return "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3";
@@ -206,9 +206,8 @@ public class YeongpoongPythonScriptExecutor {
        }
    }
 
-   // todo 기간별 데이터 수집할때는 수정해야함
    public LocalDate getTargetDate() {
-       return LocalDate.now().minusDays(1);
+       return targetDate != null ? targetDate : LocalDate.now().minusDays(1);
    }
 
    public void setTargetDate(LocalDate targetDate) {

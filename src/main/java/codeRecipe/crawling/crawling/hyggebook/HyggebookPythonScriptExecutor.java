@@ -52,7 +52,7 @@ public class HyggebookPythonScriptExecutor {
 
     private static final Logger logger = LoggerFactory.getLogger(HyggebookPythonScriptExecutor.class);
     ZonedDateTime nowInSeoul = ZonedDateTime.now(ZoneId.of("Asia/Seoul"));
-    LocalDate targetDate = LocalDate.now().minusDays(1);
+    LocalDate targetDate = null;
 
 
 
@@ -289,10 +289,8 @@ public class HyggebookPythonScriptExecutor {
 
         }
     }
-    // todo 기간별 데이터 수집할때는 수정해야함
     public LocalDate getTargetDate() {
-        return LocalDate.now().minusDays(1);
-//        return targetDate;
+        return targetDate != null ? targetDate : LocalDate.now().minusDays(1);
     }
     public void setTargetDate(LocalDate targetDate) {
         this.targetDate = targetDate; // targetDate를 원하는 날짜로 변경

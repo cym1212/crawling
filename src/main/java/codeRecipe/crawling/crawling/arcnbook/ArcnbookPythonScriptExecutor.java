@@ -54,7 +54,7 @@ public class ArcnbookPythonScriptExecutor {
 
     private static final Logger logger = LoggerFactory.getLogger(ArcnbookPythonScriptExecutor.class);
     ZonedDateTime nowInSeoul = ZonedDateTime.now(ZoneId.of("Asia/Seoul"));
-    LocalDate targetDate = LocalDate.now().minusDays(1);
+    LocalDate targetDate = null;
 
 
 //    String[] ArcnbookRegion = {"수지점", "신촌점", "롯데월드몰점", "동탄호수점", "월계점", "부산아시아드점", "몬드리안점", "광안리점", "아크앤북온라인", "충청점", "부산명지점", "세종점"};
@@ -290,10 +290,8 @@ public class ArcnbookPythonScriptExecutor {
         }
     }
 
-    // todo 기간별 데이터 수집할때는 수정해야함
     public LocalDate getTargetDate() {
-        return LocalDate.now().minusDays(1);
-//        return targetDate;
+        return targetDate != null ? targetDate : LocalDate.now().minusDays(1);
     }
 
     public void setTargetDate(LocalDate targetDate) {
