@@ -55,46 +55,45 @@ public class DataProcessingService {
         return message.toString();
     }
 
-//    public String weeklyDataProcessing() {
-//        // 현재 날짜 기준으로 지난주 월요일과 일요일 계산
-//        LocalDate today = LocalDate.now();
-//        LocalDate lastMonday = today.minusWeeks(1).with(DayOfWeek.MONDAY);
-//        LocalDate lastSunday = lastMonday.plusDays(6);
-//
-//        // 주간 데이터 집계
-//        Long totalCount = salesRecordRepository.getTotalQuantityByDateRange(lastMonday, lastSunday);
-//        Long totalAmount = salesRecordRepository.getTotalSalesAmountByDateRange(lastMonday, lastSunday);
-//
-//        List<Object[]> data2 = salesRecordRepository.findSalesSummaryByDateRange(lastMonday, lastSunday);
-//        List<Object[]> data3 = salesRecordRepository.findSalesSummaryByLocationAndDateRange(lastMonday, lastSunday);
-//
-//        // 메시지 포맷팅
-//        StringBuilder message = new StringBuilder();
-//        message.append(":bar_chart: ").append(lastMonday).append(" ~ ").append(lastSunday).append(" 주간 서점 매출 내역\n\n")
-//                .append(":date: 전체 : ").append(totalCount).append("건 = ").append(totalAmount).append("원\n\n\n\n")
-//                .append(":gem: 상품별\n\n");
-//
-//        for (Object[] result : data2) {
-//            String productName = (String) result[0];
-//            String productCode = (String) result[1];
-//            Long totalQuantity = (Long) result[2];
-//            Long totalSalesAmount = (Long) result[3];
-//
-//            message.append(String.format("%s (%s) - %d건 = %,d원\n", productName, productCode, totalQuantity, totalSalesAmount));
-//        }
-//
-//        message.append("\n\n:office:서점별 \n\n");
-//        for (Object[] result : data3) {
-//            String locationName = (String) result[0];
-//            String region = (String) result[1];
-//            Long totalQuantity = (Long) result[2];
-//            Long totalSalesAmount = (Long) result[3];
-//            message.append(String.format("%s (%s) - %d건 = %,d원\n", locationName, region, totalQuantity, totalSalesAmount));
-//        }
-//
-//        return message.toString();
-//    }
+    // 테스트용 텍스트 형식 (읽기 쉬운 형태)
+    public String weeklyDataProcessingText() {
+        LocalDate today = LocalDate.now();
+        LocalDate lastMonday = today.minusWeeks(1).with(DayOfWeek.MONDAY);
+        LocalDate lastSunday = lastMonday.plusDays(6);
 
+        Long totalCount = salesRecordRepository.getTotalQuantityByDateRange(lastMonday, lastSunday);
+        Long totalAmount = salesRecordRepository.getTotalSalesAmountByDateRange(lastMonday, lastSunday);
+
+        List<Object[]> data2 = salesRecordRepository.findSalesSummaryByDateRange(lastMonday, lastSunday);
+        List<Object[]> data3 = salesRecordRepository.findSalesSummaryByLocationAndDateRange(lastMonday, lastSunday);
+
+        StringBuilder message = new StringBuilder();
+        message.append("# ").append(lastMonday).append(" ~ ").append(lastSunday).append(" 주간 서점 매출 내역\n\n")
+                .append("전체 : ").append(totalCount).append("건 = ").append(String.format("%,d", totalAmount)).append("원\n\n")
+                .append("## 상품별\n\n");
+
+        for (Object[] result : data2) {
+            String productName = (String) result[0];
+            String productCode = (String) result[1];
+            Long totalQuantity = (Long) result[2];
+            Long totalSalesAmount = (Long) result[3];
+
+            message.append(String.format("%s (%s) - %d건 = %,d원\n", productName, productCode, totalQuantity, totalSalesAmount));
+        }
+
+        message.append("\n\n## 서점별\n\n");
+        for (Object[] result : data3) {
+            String locationName = (String) result[0];
+            String region = (String) result[1];
+            Long totalQuantity = (Long) result[2];
+            Long totalSalesAmount = (Long) result[3];
+            message.append(String.format("%s (%s) - %d건 = %,d원\n", locationName, region, totalQuantity, totalSalesAmount));
+        }
+
+        return message.toString();
+    }
+
+    // 슬랙용 JSON 형식
     public String weeklyDataProcessing() {
         // 현재 날짜 기준으로 지난주 월요일과 일요일 계산
         LocalDate today = LocalDate.now();

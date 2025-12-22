@@ -108,7 +108,7 @@ public class CrawlingController {
     }
     @GetMapping("/weekly/test")
     public String  weeklyTest() throws Exception {
-        return dataProcessingService.weeklyDataProcessing();
+        return dataProcessingService.weeklyDataProcessingText();
     }
 
 
