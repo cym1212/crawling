@@ -69,6 +69,11 @@ public class LibroPythonScriptExecutor {
     }
 
     public String excutePythonScript() throws Exception {
+        // 배치가 아닌 일반 호출 시 targetDate 초기화
+        if (this.targetDate != null && !Thread.currentThread().getStackTrace()[2].getMethodName().contains("executeForDateRange")) {
+            this.targetDate = null;
+        }
+
         String pythonPath = new File("venv/bin/python3").getAbsolutePath();
         String scriptName = "LibroCrawler.py";
 
