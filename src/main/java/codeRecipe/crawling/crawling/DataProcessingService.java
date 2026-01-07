@@ -32,7 +32,7 @@ public class DataProcessingService {
         List<Object[]> data3 = salesRecordRepository.findSalesSummaryByLocationAndDate(date);
 
         StringBuilder message = new StringBuilder();
-        message.append("# ").append(date).append("일자 서점 매출 내역\n").append("전체 : ").append(totalCount).append("건 = ").append(totalAmount).append("원\n\n\n").append("## 상품별\n\n");
+        message.append("# ").append(date).append("일자 서점 매출 내역\n").append("전체 : ").append(String.format("%,d", totalCount)).append("건 = ").append(String.format("%,d", totalAmount)).append("원\n\n\n").append("## 상품별\n\n");
 
         for (Object[] result : data2) {
             String productName = (String) result[0];
@@ -40,7 +40,7 @@ public class DataProcessingService {
             Long totalQuantity = (Long) result[2];
             Long totalSalesAmount = (Long) result[3];
 
-            message.append(String.format("%s (%s) - %d건 = %, d원\n", productName, productCode, totalQuantity, totalSalesAmount));
+            message.append(String.format("%s (%s) - %,d건 = %,d원\n", productName, productCode, totalQuantity, totalSalesAmount));
         }
 
         message.append("\n\n## 서점별 \n\n");
@@ -49,7 +49,7 @@ public class DataProcessingService {
             String region = (String) result[1];
             Long totalQuantity = (Long) result[2];
             Long totalSalesAmount = (Long) result[3];
-            message.append(String.format("%s (%s) - %d건 = %, d원\n", locationName, region, totalQuantity, totalSalesAmount));
+            message.append(String.format("%s (%s) - %,d건 = %,d원\n", locationName, region, totalQuantity, totalSalesAmount));
         }
 
         return message.toString();
@@ -69,7 +69,7 @@ public class DataProcessingService {
 
         StringBuilder message = new StringBuilder();
         message.append("# ").append(lastMonday).append(" ~ ").append(lastSunday).append(" 주간 서점 매출 내역\n\n")
-                .append("전체 : ").append(totalCount).append("건 = ").append(String.format("%,d", totalAmount)).append("원\n\n")
+                .append("전체 : ").append(String.format("%,d", totalCount)).append("건 = ").append(String.format("%,d", totalAmount)).append("원\n\n")
                 .append("## 상품별\n\n");
 
         for (Object[] result : data2) {
@@ -131,7 +131,7 @@ public class DataProcessingService {
                         )
                         .put(new JSONObject()
                                 .put("type", "mrkdwn")
-                                .put("text", "*💰 전체 매출:*\n" + totalCount + "건 = ₩" + String.format("%,d", totalAmount))
+                                .put("text", "*💰 전체 매출:*\n" + String.format("%,d", totalCount) + "건 = ₩" + String.format("%,d", totalAmount))
                         )
                 )
         );
@@ -168,7 +168,7 @@ public class DataProcessingService {
 
             productFields.put(new JSONObject()
                     .put("type", "mrkdwn")
-                    .put("text", productName + " (" + productCode + ")\n" + totalQuantity + "건 = ₩" + String.format("%,d", totalSalesAmount))
+                    .put("text", productName + " (" + productCode + ")\n" + String.format("%,d", totalQuantity) + "건 = ₩" + String.format("%,d", totalSalesAmount))
             );
         }
 
@@ -212,7 +212,7 @@ public class DataProcessingService {
 
             storeFields.put(new JSONObject()
                     .put("type", "mrkdwn")
-                    .put("text", locationName + " (" + region + ")\n" + totalQuantity + "건 = ₩" + String.format("%,d", totalSalesAmount))
+                    .put("text", locationName + " (" + region + ")\n" + String.format("%,d", totalQuantity) + "건 = ₩" + String.format("%,d", totalSalesAmount))
             );
         }
 
