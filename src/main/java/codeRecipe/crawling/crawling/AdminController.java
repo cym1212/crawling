@@ -61,35 +61,35 @@ public class AdminController {
             @RequestParam(required = false) String startDate,
             @RequestParam(required = false) String endDate,
             @RequestParam(required = false) Long locationId,
+            @RequestParam(required = false) String productName,
             @RequestParam(defaultValue = "0") int page,
             Model model, HttpServletRequest request) {
-        
+
         LocalDate start = startDate != null ? LocalDate.parse(startDate) : LocalDate.now().withDayOfMonth(1);
         LocalDate end = endDate != null ? LocalDate.parse(endDate) : LocalDate.now();
-        
+
+        // 상품명 검색어: 공백만 있거나 비어있으면 필터 미적용(null)
+        String productKeyword = (productName != null && !productName.isBlank()) ? productName.trim() : null;
+
         int pageSize = 30; // 30개씩 페이징
-        SalesReportDto.PagedSalesData pagedSalesData;
-        
-        if (locationId != null) {
-            pagedSalesData = salesReportService.getSalesByLocationAndDateRangeWithPaging(locationId, start, end, page, pageSize);
-        } else {
-            pagedSalesData = salesReportService.getSalesByDateRangeWithPaging(start, end, page, pageSize);
-        }
-        
+        SalesReportDto.PagedSalesData pagedSalesData =
+                salesReportService.getSalesWithFiltersPaging(start, end, locationId, productKeyword, page, pageSize);
+
         // 기간별 요약 정보
-        SalesReportDto.PeriodSummary periodSummary = salesReportService.getPeriodSummary(start, end, locationId);
-        
+        SalesReportDto.PeriodSummary periodSummary = salesReportService.getPeriodSummary(start, end, locationId, productKeyword);
+
         // 업체 목록
         List<SalesLocation> locations = salesLocationRepository.findAll();
-        
+
         model.addAttribute("pagedSalesData", pagedSalesData);
         model.addAttribute("periodSummary", periodSummary);
         model.addAttribute("locations", locations);
         model.addAttribute("startDate", start);
         model.addAttribute("endDate", end);
         model.addAttribute("selectedLocationId", locationId);
+        model.addAttribute("productName", productKeyword);
         model.addAttribute("currentUri", request.getRequestURI());
-        
+
         return "admin/sales-report";
     }
 
@@ -179,12 +179,15 @@ public class AdminController {
     public ResponseEntity<byte[]> downloadExcel(
             @RequestParam(required = false) String startDate,
             @RequestParam(required = false) String endDate,
-            @RequestParam(required = false) Long locationId) {
-        
+            @RequestParam(required = false) Long locationId,
+            @RequestParam(required = false) String productName) {
+
         LocalDate start = startDate != null ? LocalDate.parse(startDate) : LocalDate.now().withDayOfMonth(1);
         LocalDate end = endDate != null ? LocalDate.parse(endDate) : LocalDate.now();
-        
-        byte[] excelData = salesReportService.generateExcelReport(start, end, locationId);
+
+        String productKeyword = (productName != null && !productName.isBlank()) ? productName.trim() : null;
+
+        byte[] excelData = salesReportService.generateExcelReport(start, end, locationId, productKeyword);
         
         String filename = String.format("sales_report_%s_%s.xlsx", 
             start.format(DateTimeFormatter.ofPattern("yyyyMMdd")),

@@ -118,10 +118,12 @@ public interface SalesRecordRepository extends JpaRepository<SalesRecord, Long> 
             "COUNT(DISTINCT sr.salesLocation.locationId), COUNT(DISTINCT sr.product.productId) " +
             "FROM SalesRecord sr " +
             "WHERE sr.salesDate BETWEEN :startDate AND :endDate " +
-            "AND (:locationId IS NULL OR sr.salesLocation.locationId = :locationId)")
-    List<Object[]> findPeriodSummary(@Param("startDate") LocalDate startDate, 
-                                     @Param("endDate") LocalDate endDate, 
-                                     @Param("locationId") Long locationId);
+            "AND (:locationId IS NULL OR sr.salesLocation.locationId = :locationId) " +
+            "AND (:productName IS NULL OR LOWER(sr.product.productName) LIKE LOWER(CONCAT('%', :productName, '%')))")
+    List<Object[]> findPeriodSummary(@Param("startDate") LocalDate startDate,
+                                     @Param("endDate") LocalDate endDate,
+                                     @Param("locationId") Long locationId,
+                                     @Param("productName") String productName);
 
     @Query("SELECT sl.locationName, sl.region, SUM(sr.salesAmount), SUM(sr.actualSales), SUM(sr.quantity), COUNT(sr.recordId) " +
             "FROM SalesRecord sr " +
@@ -152,6 +154,33 @@ public interface SalesRecordRepository extends JpaRepository<SalesRecord, Long> 
                                                                     @Param("startDate") LocalDate startDate,
                                                                     @Param("endDate") LocalDate endDate,
                                                                     Pageable pageable);
+
+    // 판매처/상품명 필터 통합 페이징 쿼리 (상품명은 부분 일치 검색, LIKE %키워드%)
+    @Query("SELECT sr FROM SalesRecord sr " +
+            "JOIN FETCH sr.salesLocation sl " +
+            "JOIN FETCH sr.product p " +
+            "WHERE sr.salesDate BETWEEN :startDate AND :endDate " +
+            "AND (:locationId IS NULL OR sl.locationId = :locationId) " +
+            "AND (:productName IS NULL OR LOWER(p.productName) LIKE LOWER(CONCAT('%', :productName, '%'))) " +
+            "ORDER BY sr.salesDate DESC, sl.locationName, p.productName")
+    Page<SalesRecord> findSalesDataWithFilters(@Param("startDate") LocalDate startDate,
+                                               @Param("endDate") LocalDate endDate,
+                                               @Param("locationId") Long locationId,
+                                               @Param("productName") String productName,
+                                               Pageable pageable);
+
+    // 판매처/상품명 필터 통합 리스트 쿼리 (엑셀 다운로드용)
+    @Query("SELECT sr FROM SalesRecord sr " +
+            "JOIN FETCH sr.salesLocation sl " +
+            "JOIN FETCH sr.product p " +
+            "WHERE sr.salesDate BETWEEN :startDate AND :endDate " +
+            "AND (:locationId IS NULL OR sl.locationId = :locationId) " +
+            "AND (:productName IS NULL OR LOWER(p.productName) LIKE LOWER(CONCAT('%', :productName, '%'))) " +
+            "ORDER BY sr.salesDate DESC, sl.locationName, p.productName")
+    List<SalesRecord> findSalesDataWithFilters(@Param("startDate") LocalDate startDate,
+                                               @Param("endDate") LocalDate endDate,
+                                               @Param("locationId") Long locationId,
+                                               @Param("productName") String productName);
 
     // 그래프용 일별 집계 쿼리
     @Query("SELECT sr.salesDate, SUM(sr.salesAmount), SUM(sr.actualSales), SUM(sr.quantity) " +

@@ -27,29 +27,35 @@
         </div>
         <div class="card-body">
             <form method="get" action="/admin/sales-report">
-                <div class="row">
+                <div class="row g-3">
                     <div class="col-md-3">
                         <label for="startDate" class="form-label">시작일</label>
-                        <input type="date" class="form-control" id="startDate" name="startDate" 
+                        <input type="date" class="form-control" id="startDate" name="startDate"
                                th:value="${startDate}">
                     </div>
                     <div class="col-md-3">
                         <label for="endDate" class="form-label">종료일</label>
-                        <input type="date" class="form-control" id="endDate" name="endDate" 
+                        <input type="date" class="form-control" id="endDate" name="endDate"
                                th:value="${endDate}">
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label for="locationId" class="form-label">판매처</label>
                         <select class="form-select" id="locationId" name="locationId">
                             <option value="">전체 판매처</option>
-                            <option th:each="location : ${locations}" 
-                                    th:value="${location.locationId}" 
+                            <option th:each="location : ${locations}"
+                                    th:value="${location.locationId}"
                                     th:text="${location.locationName + ' (' + location.region + ')'}"
                                     th:selected="${location.locationId == selectedLocationId}"></option>
                         </select>
                     </div>
-                    <div class="col-md-2 d-flex align-items-end">
-                        <button type="submit" class="btn btn-primary w-100">
+                    <div class="col-md-3">
+                        <label for="productName" class="form-label">상품명</label>
+                        <input type="text" class="form-control" id="productName" name="productName"
+                               placeholder="상품명 일부 입력 (부분 검색)"
+                               th:value="${productName}">
+                    </div>
+                    <div class="col-12 d-flex justify-content-end">
+                        <button type="submit" class="btn btn-primary px-4">
                             <i class="fas fa-search me-1"></i>조회
                         </button>
                     </div>
@@ -59,6 +65,12 @@
     </div>
 
     <!-- 기간별 요약 통계 -->
+    <div class="d-flex align-items-center mb-2">
+        <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-calculator me-2"></i>검색 결과 합계
+        </h6>
+        <span class="badge bg-secondary ms-2">전체 검색 결과 기준 · 페이징과 무관</span>
+    </div>
     <div class="row mb-4">
         <div class="col-xl-3 col-md-6 mb-4">
             <div class="card stats-card shadow h-100 py-2">
@@ -66,7 +78,7 @@
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
                             <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
-                                총 매출액
+                                총 매출액 (합계)
                             </div>
                             <div class="h5 mb-0 font-weight-bold text-gray-800">
                                 <span th:text="${#numbers.formatInteger(periodSummary.totalSalesAmount ?: 0, 0, 'COMMA')}">0</span>원
@@ -106,7 +118,7 @@
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
                             <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
-                                총 판매수량
+                                총 판매수량 (합계)
                             </div>
                             <div class="h5 mb-0 font-weight-bold text-gray-800">
                                 <span th:text="${#numbers.formatInteger(periodSummary.totalQuantity ?: 0, 0, 'COMMA')}">0</span>개
@@ -199,7 +211,7 @@
                         <ul class="pagination pagination-sm mb-0">
                             <!-- 이전 페이지 -->
                             <li class="page-item" th:classappend="${!pagedSalesData.hasPrevious ? 'disabled' : ''}">
-                                <a class="page-link" th:href="@{/admin/sales-report(startDate=${startDate}, endDate=${endDate}, locationId=${selectedLocationId}, page=${pagedSalesData.currentPage - 1})}" 
+                                <a class="page-link" th:href="@{/admin/sales-report(startDate=${startDate}, endDate=${endDate}, locationId=${selectedLocationId}, productName=${productName}, page=${pagedSalesData.currentPage - 1})}"
                                    th:if="${pagedSalesData.hasPrevious}">이전</a>
                                 <span class="page-link" th:unless="${pagedSalesData.hasPrevious}">이전</span>
                             </li>
@@ -208,14 +220,14 @@
                             <li class="page-item" 
                                 th:each="pageNum : ${#numbers.sequence(T(java.lang.Math).max(0, pagedSalesData.currentPage - 2), T(java.lang.Math).min(pagedSalesData.totalPages - 1, pagedSalesData.currentPage + 2))}"
                                 th:classappend="${pageNum == pagedSalesData.currentPage ? 'active' : ''}">
-                                <a class="page-link" 
-                                   th:href="@{/admin/sales-report(startDate=${startDate}, endDate=${endDate}, locationId=${selectedLocationId}, page=${pageNum})}"
+                                <a class="page-link"
+                                   th:href="@{/admin/sales-report(startDate=${startDate}, endDate=${endDate}, locationId=${selectedLocationId}, productName=${productName}, page=${pageNum})}"
                                    th:text="${pageNum + 1}"></a>
                             </li>
                             
                             <!-- 다음 페이지 -->
                             <li class="page-item" th:classappend="${!pagedSalesData.hasNext ? 'disabled' : ''}">
-                                <a class="page-link" th:href="@{/admin/sales-report(startDate=${startDate}, endDate=${endDate}, locationId=${selectedLocationId}, page=${pagedSalesData.currentPage + 1})}" 
+                                <a class="page-link" th:href="@{/admin/sales-report(startDate=${startDate}, endDate=${endDate}, locationId=${selectedLocationId}, productName=${productName}, page=${pagedSalesData.currentPage + 1})}"
                                    th:if="${pagedSalesData.hasNext}">다음</a>
                                 <span class="page-link" th:unless="${pagedSalesData.hasNext}">다음</span>
                             </li>
@@ -233,12 +245,14 @@
             const startDate = document.getElementById('startDate').value;
             const endDate = document.getElementById('endDate').value;
             const locationId = document.getElementById('locationId').value;
-            
+            const productName = document.getElementById('productName').value;
+
             let url = '/admin/sales-report/excel?';
             if (startDate) url += 'startDate=' + startDate + '&';
             if (endDate) url += 'endDate=' + endDate + '&';
             if (locationId) url += 'locationId=' + locationId + '&';
-            
+            if (productName) url += 'productName=' + encodeURIComponent(productName) + '&';
+
             window.location.href = url;
         }
         

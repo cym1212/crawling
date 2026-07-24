@@ -79,8 +79,8 @@ public class SalesReportService {
                 .build();
     }
 
-    public SalesReportDto.PeriodSummary getPeriodSummary(LocalDate startDate, LocalDate endDate, Long locationId) {
-        List<Object[]> results = salesRecordRepository.findPeriodSummary(startDate, endDate, locationId);
+    public SalesReportDto.PeriodSummary getPeriodSummary(LocalDate startDate, LocalDate endDate, Long locationId, String productName) {
+        List<Object[]> results = salesRecordRepository.findPeriodSummary(startDate, endDate, locationId, productName);
         
         if (results.isEmpty()) {
             return SalesReportDto.PeriodSummary.builder()
@@ -161,11 +161,30 @@ public class SalesReportService {
     public SalesReportDto.PagedSalesData getSalesByLocationAndDateRangeWithPaging(Long locationId, LocalDate startDate, LocalDate endDate, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
         Page<SalesRecord> pageResult = salesRecordRepository.findSalesDataByLocationAndDateRangeWithPaging(locationId, startDate, endDate, pageable);
-        
+
         List<SalesReportDto.SalesData> content = pageResult.getContent().stream()
                 .map(this::convertToSalesData)
                 .collect(Collectors.toList());
-        
+
+        return SalesReportDto.PagedSalesData.builder()
+                .content(content)
+                .currentPage(pageResult.getNumber())
+                .totalPages(pageResult.getTotalPages())
+                .totalElements(pageResult.getTotalElements())
+                .hasNext(pageResult.hasNext())
+                .hasPrevious(pageResult.hasPrevious())
+                .build();
+    }
+
+    // 판매처/상품명 필터 통합 페이징 조회 (locationId, productName 모두 null 허용)
+    public SalesReportDto.PagedSalesData getSalesWithFiltersPaging(LocalDate startDate, LocalDate endDate, Long locationId, String productName, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<SalesRecord> pageResult = salesRecordRepository.findSalesDataWithFilters(startDate, endDate, locationId, productName, pageable);
+
+        List<SalesReportDto.SalesData> content = pageResult.getContent().stream()
+                .map(this::convertToSalesData)
+                .collect(Collectors.toList());
+
         return SalesReportDto.PagedSalesData.builder()
                 .content(content)
                 .currentPage(pageResult.getNumber())
@@ -235,7 +254,7 @@ public class SalesReportService {
                 .build();
     }
 
-    public byte[] generateExcelReport(LocalDate startDate, LocalDate endDate, Long locationId) {
+    public byte[] generateExcelReport(LocalDate startDate, LocalDate endDate, Long locationId, String productName) {
         try (Workbook workbook = new XSSFWorkbook();
              ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
             
@@ -260,13 +279,12 @@ public class SalesReportService {
                 cell.setCellStyle(headerStyle);
             }
             
-            // 데이터 조회 및 추가
-            List<SalesReportDto.SalesData> salesData;
-            if (locationId != null) {
-                salesData = getSalesByLocationAndDateRange(locationId, startDate, endDate);
-            } else {
-                salesData = getSalesByDateRange(startDate, endDate);
-            }
+            // 데이터 조회 및 추가 (판매처/상품명 필터 반영)
+            List<SalesReportDto.SalesData> salesData = salesRecordRepository
+                    .findSalesDataWithFilters(startDate, endDate, locationId, productName)
+                    .stream()
+                    .map(this::convertToSalesData)
+                    .collect(Collectors.toList());
             
             int rowNum = 1;
             for (SalesReportDto.SalesData data : salesData) {
