@@ -56,17 +56,29 @@ public class AdminController {
         return "admin/dashboard";
     }
 
+    // 전체 기간 조회 시작일 (하드코딩)
+    private static final LocalDate ALL_PERIOD_START = LocalDate.of(2020, 1, 1);
+
     @GetMapping("/sales-report")
     public String salesReport(
             @RequestParam(required = false) String startDate,
             @RequestParam(required = false) String endDate,
             @RequestParam(required = false) Long locationId,
             @RequestParam(required = false) String productName,
+            @RequestParam(defaultValue = "false") boolean allPeriod,
             @RequestParam(defaultValue = "0") int page,
             Model model, HttpServletRequest request) {
 
-        LocalDate start = startDate != null ? LocalDate.parse(startDate) : LocalDate.now().withDayOfMonth(1);
-        LocalDate end = endDate != null ? LocalDate.parse(endDate) : LocalDate.now();
+        // 전체 기간 조회 시 시작일은 2020-01-01로 고정, 종료일은 선택값(없으면 오늘)
+        LocalDate start;
+        LocalDate end;
+        if (allPeriod) {
+            start = ALL_PERIOD_START;
+            end = endDate != null ? LocalDate.parse(endDate) : LocalDate.now();
+        } else {
+            start = startDate != null ? LocalDate.parse(startDate) : LocalDate.now().withDayOfMonth(1);
+            end = endDate != null ? LocalDate.parse(endDate) : LocalDate.now();
+        }
 
         // 상품명 검색어: 공백만 있거나 비어있으면 필터 미적용(null)
         String productKeyword = (productName != null && !productName.isBlank()) ? productName.trim() : null;
@@ -88,6 +100,7 @@ public class AdminController {
         model.addAttribute("endDate", end);
         model.addAttribute("selectedLocationId", locationId);
         model.addAttribute("productName", productKeyword);
+        model.addAttribute("allPeriod", allPeriod);
         model.addAttribute("currentUri", request.getRequestURI());
 
         return "admin/sales-report";
@@ -180,10 +193,18 @@ public class AdminController {
             @RequestParam(required = false) String startDate,
             @RequestParam(required = false) String endDate,
             @RequestParam(required = false) Long locationId,
-            @RequestParam(required = false) String productName) {
+            @RequestParam(required = false) String productName,
+            @RequestParam(defaultValue = "false") boolean allPeriod) {
 
-        LocalDate start = startDate != null ? LocalDate.parse(startDate) : LocalDate.now().withDayOfMonth(1);
-        LocalDate end = endDate != null ? LocalDate.parse(endDate) : LocalDate.now();
+        LocalDate start;
+        LocalDate end;
+        if (allPeriod) {
+            start = ALL_PERIOD_START;
+            end = endDate != null ? LocalDate.parse(endDate) : LocalDate.now();
+        } else {
+            start = startDate != null ? LocalDate.parse(startDate) : LocalDate.now().withDayOfMonth(1);
+            end = endDate != null ? LocalDate.parse(endDate) : LocalDate.now();
+        }
 
         String productKeyword = (productName != null && !productName.isBlank()) ? productName.trim() : null;
 

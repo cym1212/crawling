@@ -6,6 +6,80 @@
 </head>
 
 <div layout:fragment="content">
+    <!-- 페이징/페이지 이동 버튼 모던 스타일 -->
+    <style>
+        .pagination {
+            gap: 6px;
+        }
+        .pagination .page-item .page-link {
+            border-radius: 10px;
+            border: 1px solid #e6e9f2;
+            color: #007bff;
+            min-width: 40px;
+            text-align: center;
+            font-weight: 500;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, .06);
+            transition: transform .15s ease, box-shadow .15s ease, background-color .15s ease, border-color .15s ease;
+        }
+        .pagination .page-item .page-link:hover {
+            transform: translateY(-2px);
+            background-color: #f1f7ff;
+            border-color: #cfe2ff;
+            box-shadow: 0 6px 14px rgba(0, 123, 255, .20);
+        }
+        .pagination .page-item.active .page-link {
+            background-color: #007bff;
+            border-color: #007bff;
+            color: #fff;
+            box-shadow: 0 6px 14px rgba(0, 123, 255, .35);
+        }
+        .pagination .page-item.active .page-link:hover {
+            transform: translateY(-2px);
+        }
+        .pagination .page-item.disabled .page-link {
+            color: #adb5bd;
+            background-color: #f8f9fa;
+            border-color: #e9ecef;
+            box-shadow: none;
+        }
+        /* 페이지 직접 이동 입력 그룹 */
+        .page-jump {
+            border-radius: 10px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, .06);
+        }
+        .page-jump > :first-child {
+            border-top-left-radius: 10px;
+            border-bottom-left-radius: 10px;
+        }
+        .page-jump > :last-child {
+            border-top-right-radius: 10px;
+            border-bottom-right-radius: 10px;
+        }
+        .page-jump .input-group-text {
+            background-color: #f8f9fa;
+            border-color: #e6e9f2;
+            color: #6c757d;
+        }
+        .page-jump .form-control {
+            border-color: #e6e9f2;
+            font-weight: 500;
+        }
+        .page-jump .form-control:focus {
+            border-color: #cfe2ff;
+            box-shadow: 0 0 0 .2rem rgba(0, 123, 255, .15);
+            z-index: 3;
+        }
+        .page-jump .btn {
+            font-weight: 500;
+            transition: transform .15s ease, box-shadow .15s ease, background-color .15s ease, color .15s ease;
+        }
+        .page-jump .btn:hover {
+            background-color: #007bff;
+            color: #fff;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 14px rgba(0, 123, 255, .25);
+        }
+    </style>
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-2 pb-2 mb-3 border-bottom">
         <h1 class="h2">
             <i class="fas fa-chart-bar me-2"></i>매출 조회
@@ -28,10 +102,10 @@
         <div class="card-body">
             <form method="get" action="/admin/sales-report">
                 <div class="row g-3">
-                    <div class="col-md-3">
+                    <div class="col-md-3" id="startDateCol" th:classappend="${allPeriod} ? 'd-none' : ''">
                         <label for="startDate" class="form-label">시작일</label>
                         <input type="date" class="form-control" id="startDate" name="startDate"
-                               th:value="${startDate}">
+                               th:value="${startDate}" th:disabled="${allPeriod}">
                     </div>
                     <div class="col-md-3">
                         <label for="endDate" class="form-label">종료일</label>
@@ -54,7 +128,17 @@
                                placeholder="상품명 일부 입력 (부분 검색)"
                                th:value="${productName}">
                     </div>
-                    <div class="col-12 d-flex justify-content-end">
+                    <div class="col-12 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="checkbox" class="btn-check" id="allPeriod" name="allPeriod" value="true"
+                                   autocomplete="off" th:checked="${allPeriod}" onchange="toggleAllPeriod()">
+                            <label class="btn btn-outline-secondary" for="allPeriod">
+                                <i class="fas fa-infinity me-1"></i>전체 기간 조회
+                            </label>
+                            <small class="text-muted period-hint" th:classappend="${allPeriod} ? '' : 'd-none'">
+                                <i class="fas fa-info-circle me-1"></i>처음부터 종료일까지 전체 기간이 조회됩니다.
+                            </small>
+                        </div>
                         <button type="submit" class="btn btn-primary px-4">
                             <i class="fas fa-search me-1"></i>조회
                         </button>
@@ -206,33 +290,60 @@
                         </span>
                     </div>
                     
-                    <!-- 페이징 버튼 -->
-                    <nav th:if="${pagedSalesData.totalPages > 1}">
-                        <ul class="pagination pagination-sm mb-0">
-                            <!-- 이전 페이지 -->
-                            <li class="page-item" th:classappend="${!pagedSalesData.hasPrevious ? 'disabled' : ''}">
-                                <a class="page-link" th:href="@{/admin/sales-report(startDate=${startDate}, endDate=${endDate}, locationId=${selectedLocationId}, productName=${productName}, page=${pagedSalesData.currentPage - 1})}"
-                                   th:if="${pagedSalesData.hasPrevious}">이전</a>
-                                <span class="page-link" th:unless="${pagedSalesData.hasPrevious}">이전</span>
-                            </li>
-                            
-                            <!-- 페이지 번호들 -->
-                            <li class="page-item" 
-                                th:each="pageNum : ${#numbers.sequence(T(java.lang.Math).max(0, pagedSalesData.currentPage - 2), T(java.lang.Math).min(pagedSalesData.totalPages - 1, pagedSalesData.currentPage + 2))}"
-                                th:classappend="${pageNum == pagedSalesData.currentPage ? 'active' : ''}">
-                                <a class="page-link"
-                                   th:href="@{/admin/sales-report(startDate=${startDate}, endDate=${endDate}, locationId=${selectedLocationId}, productName=${productName}, page=${pageNum})}"
-                                   th:text="${pageNum + 1}"></a>
-                            </li>
-                            
-                            <!-- 다음 페이지 -->
-                            <li class="page-item" th:classappend="${!pagedSalesData.hasNext ? 'disabled' : ''}">
-                                <a class="page-link" th:href="@{/admin/sales-report(startDate=${startDate}, endDate=${endDate}, locationId=${selectedLocationId}, productName=${productName}, page=${pagedSalesData.currentPage + 1})}"
-                                   th:if="${pagedSalesData.hasNext}">다음</a>
-                                <span class="page-link" th:unless="${pagedSalesData.hasNext}">다음</span>
-                            </li>
-                        </ul>
-                    </nav>
+                    <!-- 페이징 버튼 + 페이지 직접 이동 -->
+                    <div class="d-flex align-items-center gap-3" th:if="${pagedSalesData.totalPages > 1}">
+                        <nav>
+                            <ul class="pagination pagination-sm mb-0">
+                                <!-- 처음 페이지 -->
+                                <li class="page-item" th:classappend="${!pagedSalesData.hasPrevious ? 'disabled' : ''}">
+                                    <a class="page-link" th:href="@{/admin/sales-report(startDate=${startDate}, endDate=${endDate}, locationId=${selectedLocationId}, productName=${productName}, allPeriod=${allPeriod}, page=0)}"
+                                       th:if="${pagedSalesData.hasPrevious}">처음</a>
+                                    <span class="page-link" th:unless="${pagedSalesData.hasPrevious}">처음</span>
+                                </li>
+                                <!-- 이전 페이지 -->
+                                <li class="page-item" th:classappend="${!pagedSalesData.hasPrevious ? 'disabled' : ''}">
+                                    <a class="page-link" th:href="@{/admin/sales-report(startDate=${startDate}, endDate=${endDate}, locationId=${selectedLocationId}, productName=${productName}, allPeriod=${allPeriod}, page=${pagedSalesData.currentPage - 1})}"
+                                       th:if="${pagedSalesData.hasPrevious}">이전</a>
+                                    <span class="page-link" th:unless="${pagedSalesData.hasPrevious}">이전</span>
+                                </li>
+
+                                <!-- 페이지 번호들 -->
+                                <li class="page-item"
+                                    th:each="pageNum : ${#numbers.sequence(T(java.lang.Math).max(0, pagedSalesData.currentPage - 2), T(java.lang.Math).min(pagedSalesData.totalPages - 1, pagedSalesData.currentPage + 2))}"
+                                    th:classappend="${pageNum == pagedSalesData.currentPage ? 'active' : ''}">
+                                    <a class="page-link"
+                                       th:href="@{/admin/sales-report(startDate=${startDate}, endDate=${endDate}, locationId=${selectedLocationId}, productName=${productName}, allPeriod=${allPeriod}, page=${pageNum})}"
+                                       th:text="${pageNum + 1}"></a>
+                                </li>
+
+                                <!-- 다음 페이지 -->
+                                <li class="page-item" th:classappend="${!pagedSalesData.hasNext ? 'disabled' : ''}">
+                                    <a class="page-link" th:href="@{/admin/sales-report(startDate=${startDate}, endDate=${endDate}, locationId=${selectedLocationId}, productName=${productName}, allPeriod=${allPeriod}, page=${pagedSalesData.currentPage + 1})}"
+                                       th:if="${pagedSalesData.hasNext}">다음</a>
+                                    <span class="page-link" th:unless="${pagedSalesData.hasNext}">다음</span>
+                                </li>
+                                <!-- 마지막 페이지 -->
+                                <li class="page-item" th:classappend="${!pagedSalesData.hasNext ? 'disabled' : ''}">
+                                    <a class="page-link" th:href="@{/admin/sales-report(startDate=${startDate}, endDate=${endDate}, locationId=${selectedLocationId}, productName=${productName}, allPeriod=${allPeriod}, page=${pagedSalesData.totalPages - 1})}"
+                                       th:if="${pagedSalesData.hasNext}">마지막</a>
+                                    <span class="page-link" th:unless="${pagedSalesData.hasNext}">마지막</span>
+                                </li>
+                            </ul>
+                        </nav>
+
+                        <!-- 페이지 직접 입력 이동 -->
+                        <div class="input-group input-group-sm page-jump" style="width: auto;">
+                            <span class="input-group-text">페이지</span>
+                            <input type="number" class="form-control text-center" id="pageJumpInput"
+                                   style="width: 70px;"
+                                   min="1" th:max="${pagedSalesData.totalPages}"
+                                   th:value="${pagedSalesData.currentPage + 1}"
+                                   th:attr="data-total-pages=${pagedSalesData.totalPages}"
+                                   onkeydown="if(event.key==='Enter'){event.preventDefault();goToPage();}">
+                            <span class="input-group-text">/ <span th:text="${pagedSalesData.totalPages}">1</span></span>
+                            <button type="button" class="btn btn-outline-primary" onclick="goToPage()">이동</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -241,17 +352,63 @@
 
 <div layout:fragment="scripts">
     <script>
-        function downloadExcel() {
-            const startDate = document.getElementById('startDate').value;
-            const endDate = document.getElementById('endDate').value;
+        // 전체 기간 조회 토글: 켜면 시작일(2020-01-01)은 숨기고, 종료일만 선택 가능하게 유지
+        function toggleAllPeriod() {
+            const checkbox = document.getElementById('allPeriod');
+            if (!checkbox) return;
+            const on = checkbox.checked;
+            const startEl = document.getElementById('startDate');
+            const startCol = document.getElementById('startDateCol');
+            const hint = document.querySelector('.period-hint');
+
+            // 시작일은 화면에서 숨기고 내부적으로 2020-01-01 고정 (서버에서 전체 기간 처리)
+            startEl.disabled = on;
+            startEl.value = '2020-01-01';
+            if (startCol) startCol.classList.toggle('d-none', on);
+            if (hint) hint.classList.toggle('d-none', !on);
+        }
+
+        // 현재 검색 조건을 쿼리스트링으로 구성 (전체 기간이면 날짜 대신 allPeriod 사용)
+        function buildFilterQuery() {
+            const allPeriod = document.getElementById('allPeriod') && document.getElementById('allPeriod').checked;
             const locationId = document.getElementById('locationId').value;
             const productName = document.getElementById('productName').value;
 
-            let url = '/admin/sales-report/excel?';
-            if (startDate) url += 'startDate=' + startDate + '&';
-            if (endDate) url += 'endDate=' + endDate + '&';
-            if (locationId) url += 'locationId=' + locationId + '&';
-            if (productName) url += 'productName=' + encodeURIComponent(productName) + '&';
+            let params = [];
+            const endDate = document.getElementById('endDate').value;
+            if (allPeriod) {
+                params.push('allPeriod=true');
+                if (endDate) params.push('endDate=' + endDate);
+            } else {
+                const startDate = document.getElementById('startDate').value;
+                if (startDate) params.push('startDate=' + startDate);
+                if (endDate) params.push('endDate=' + endDate);
+            }
+            if (locationId) params.push('locationId=' + locationId);
+            if (productName) params.push('productName=' + encodeURIComponent(productName));
+            return params.join('&');
+        }
+
+        // 페이지 번호 직접 입력 이동 (현재 검색 조건 유지)
+        function goToPage() {
+            const input = document.getElementById('pageJumpInput');
+            if (!input) return;
+            const totalPages = parseInt(input.getAttribute('data-total-pages'), 10) || 1;
+            let pageNo = parseInt(input.value, 10);
+            if (isNaN(pageNo) || pageNo < 1) pageNo = 1;
+            if (pageNo > totalPages) pageNo = totalPages;
+
+            const query = buildFilterQuery();
+            let url = '/admin/sales-report?page=' + (pageNo - 1);
+            if (query) url += '&' + query;
+
+            window.location.href = url;
+        }
+
+        function downloadExcel() {
+            const query = buildFilterQuery();
+            let url = '/admin/sales-report/excel';
+            if (query) url += '?' + query;
 
             window.location.href = url;
         }
