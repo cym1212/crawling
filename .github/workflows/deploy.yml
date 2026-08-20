@@ -1,0 +1,80 @@
+name: Deploy to Server
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      # application-*.yml 설정 파일들은 git에 없으므로 Secrets에서 복원
+      - name: Restore config files
+        run: echo "${{ secrets.CONFIG_FILES }}" | base64 -d | tar xz -C src/main/resources
+
+      - name: Build
+        run: ./gradlew clean bootJar -x test
+
+      - name: Upload jar to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ secrets.SSH_PORT || '22' }}
+          source: build/libs/crawling-0.0.1-SNAPSHOT.jar
+          target: ${{ secrets.APP_DIR }}/deploy/
+          strip_components: 2
+
+      - name: Restart application
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ secrets.SSH_PORT || '22' }}
+          script: |
+            set -e
+            cd ${{ secrets.APP_DIR }}
+
+            # 기존 프로세스 종료 (포트 8081 기준, 못 찾으면 jar 이름으로)
+            PID=$(lsof -ti:8081 2>/dev/null || pgrep -f 'crawling-0.0.1-SNAPSHOT.jar' || true)
+            if [ -n "$PID" ]; then
+              kill $PID || true
+              for i in $(seq 1 30); do
+                [ -z "$(lsof -ti:8081 2>/dev/null || true)" ] && break
+                sleep 1
+              done
+            fi
+
+            # jar 교체 (직전 버전은 crawling-prev.jar 로 백업)
+            if [ -f crawling-0.0.1-SNAPSHOT.jar ]; then
+              mv -f crawling-0.0.1-SNAPSHOT.jar crawling-prev.jar
+            fi
+            mv -f deploy/crawling-0.0.1-SNAPSHOT.jar ./crawling-0.0.1-SNAPSHOT.jar
+
+            # 실행 (기존 수동 배포와 동일한 명령)
+            nohup java -jar crawling-0.0.1-SNAPSHOT.jar >> crawling.log 2>&1 &
+
+            # 기동 확인 (최대 2분 대기)
+            for i in $(seq 1 60); do
+              if curl -sf http://localhost:8081/actuator/health > /dev/null 2>&1; then
+                echo "Deploy success"
+                exit 0
+              fi
+              sleep 2
+            done
+            echo "Health check failed - recent log:"
+            tail -n 50 crawling.log
+            exit 1
