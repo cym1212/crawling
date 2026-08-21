@@ -116,21 +116,36 @@ public class CoupangSyncController {
     }
 
     @Operation(summary = "④-디버그 주문 API 원본 응답 조회",
-            description = "지정한 날짜 하루의 쿠팡 주문 API 원본 JSON(1페이지)을 가공 없이 그대로 반환한다. "
-                    + "판매 수집 결과가 비었을 때 쿠팡이 실제로 뭘 돌려주는지 확인하는 용도. DB 저장 없음.")
+            description = "쿠팡 주문 API 원본 JSON(1페이지)을 가공 없이 그대로 반환한다. "
+                    + "date(하루) 또는 from/to(기간)로 조회. 판매 수집 결과가 비었을 때 쿠팡이 실제로 뭘 돌려주는지 "
+                    + "확인하는 용도. DB 저장 없음.")
     @GetMapping("/coupang/orders/raw")
     public ResponseEntity<Object> ordersRaw(
             @Parameter(description = "내부 인증 토큰 (application-coupang.yml의 coupang.internal.token 값)")
             @RequestHeader(value = "X-Internal-Token", required = false) String token,
             @Parameter(description = "조회할 날짜 (yyyy-MM-dd, 생략 시 어제)")
-            @RequestParam(required = false) String date) {
+            @RequestParam(required = false) String date,
+            @Parameter(description = "기간 시작일 (yyyy-MM-dd, date보다 우선)")
+            @RequestParam(required = false) String from,
+            @Parameter(description = "기간 종료일 (yyyy-MM-dd, from과 함께 사용)")
+            @RequestParam(required = false) String to) {
         if (!internalAuth.isAuthorized(token)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "unauthorized"));
         }
-        LocalDate target = date != null ? LocalDate.parse(date) : LocalDate.now(SEOUL).minusDays(1);
-        String dateParam = target.format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE);
+        LocalDate fromDate;
+        LocalDate toDate;
+        if (from != null && to != null) {
+            fromDate = LocalDate.parse(from);
+            toDate = LocalDate.parse(to);
+        } else {
+            LocalDate target = date != null ? LocalDate.parse(date) : LocalDate.now(SEOUL).minusDays(1);
+            fromDate = target;
+            toDate = target;
+        }
+        java.time.format.DateTimeFormatter basic = java.time.format.DateTimeFormatter.BASIC_ISO_DATE;
         try {
-            return ResponseEntity.ok(coupangApiClient.getRocketGrowthOrders(dateParam, dateParam, null));
+            return ResponseEntity.ok(coupangApiClient.getRocketGrowthOrders(
+                    fromDate.format(basic), toDate.format(basic), null));
         } catch (CoupangApiException e) {
             return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of(
                     "error", "coupang_api_error",
