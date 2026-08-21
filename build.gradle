@@ -86,6 +86,9 @@ dependencies {
 	//JSON
 	implementation group: 'org.json', name: 'json', version: '20240303'
 
+	// 테스트 (JUnit 5 포함) — 단위테스트용
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+
 }
 
 tasks.named('test') {
