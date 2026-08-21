@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -34,8 +35,11 @@ public class CoupangProductSyncService {
     private final CoupangApiClient coupangApiClient;
     private final CoupangProductRepository coupangProductRepository;
 
-    /** @param forceRefresh true면 매핑이 이미 있는 상품도 상세 조회를 다시 수행 */
-    public int syncProducts(boolean forceRefresh) {
+    /**
+     * @param forceRefresh true면 매핑이 이미 있는 상품도 상세 조회를 다시 수행
+     * @return 이번 실행에서 신규/갱신된 매핑 목록
+     */
+    public List<CoupangProduct> syncProducts(boolean forceRefresh) {
         List<CoupangProduct> all = coupangProductRepository.findAll();
         Map<Long, List<CoupangProduct>> bySellerProductId = all.stream()
                 .filter(p -> p.getSellerProductId() != null)
@@ -65,28 +69,26 @@ public class CoupangProductSyncService {
                     JsonNode detail = coupangApiClient.getSellerProduct(sellerProductId);
                     detailCalls++;
                     for (JsonNode itemNode : detail.path("data").path("items")) {
-                        JsonNode vidNode = itemNode.path("vendorItemId");
-                        if (vidNode.isMissingNode() || vidNode.isNull()) {
-                            continue; // 승인 전 상품은 vendorItemId가 null
-                        }
-                        long vendorItemId = vidNode.asLong();
                         String itemName = CoupangJsonUtils.textOrNull(itemNode, "itemName");
-                        CoupangProduct existing = byVendorItemId.get(vendorItemId);
-                        CoupangProduct merged = existing == null
-                                ? CoupangProduct.builder()
-                                        .vendorItemId(vendorItemId)
-                                        .sellerProductId(sellerProductId)
-                                        .productName(listName)
-                                        .itemName(itemName)
-                                        .updatedAt(now)
-                                        .build()
-                                : existing.toBuilder()
-                                        .sellerProductId(sellerProductId)
-                                        .productName(listName)
-                                        .itemName(itemName)
-                                        .updatedAt(now)
-                                        .build();
-                        toSave.put(vendorItemId, merged);
+                        // 승인 전 상품은 vendorItemId가 null이라 목록이 비어 스킵됨
+                        for (long vendorItemId : extractVendorItemIds(itemNode)) {
+                            CoupangProduct existing = byVendorItemId.get(vendorItemId);
+                            CoupangProduct merged = existing == null
+                                    ? CoupangProduct.builder()
+                                            .vendorItemId(vendorItemId)
+                                            .sellerProductId(sellerProductId)
+                                            .productName(listName)
+                                            .itemName(itemName)
+                                            .updatedAt(now)
+                                            .build()
+                                    : existing.toBuilder()
+                                            .sellerProductId(sellerProductId)
+                                            .productName(listName)
+                                            .itemName(itemName)
+                                            .updatedAt(now)
+                                            .build();
+                            toSave.put(vendorItemId, merged);
+                        }
                     }
                 } else {
                     // 이미 매핑된 상품: 상품명이 바뀐 경우만 상세 호출 없이 갱신 (vendorItemId는 불변)
@@ -109,8 +111,29 @@ public class CoupangProductSyncService {
             pages++;
         } while (nextToken != null && pages < MAX_PAGES);
 
-        coupangProductRepository.saveAll(toSave.values());
-        log.info("쿠팡 상품 매핑 동기화 완료 pages={} detailCalls={} saved={}", pages, detailCalls, toSave.size());
-        return toSave.size();
+        List<CoupangProduct> saved = coupangProductRepository.saveAll(new ArrayList<>(toSave.values()));
+        log.info("쿠팡 상품 매핑 동기화 완료 pages={} detailCalls={} saved={}", pages, detailCalls, saved.size());
+        return saved;
+    }
+
+    /**
+     * 상품 유형별로 vendorItemId 위치가 다르다:
+     * - 마켓플레이스 전용 상품(구 스키마): items[].vendorItemId
+     * - 로켓그로스 전용/동시 운영 상품(신 스키마): items[].rocketGrowthItemData.vendorItemId,
+     *   items[].marketplaceItemData.vendorItemId (동시 운영이면 둘 다 존재, 서로 다른 ID)
+     * 승인 전 상품은 vendorItemId가 null이므로 제외된다.
+     */
+    private static List<Long> extractVendorItemIds(JsonNode itemNode) {
+        List<Long> ids = new ArrayList<>();
+        addVendorItemId(ids, itemNode.path("vendorItemId"));
+        addVendorItemId(ids, itemNode.path("rocketGrowthItemData").path("vendorItemId"));
+        addVendorItemId(ids, itemNode.path("marketplaceItemData").path("vendorItemId"));
+        return ids;
+    }
+
+    private static void addVendorItemId(List<Long> ids, JsonNode node) {
+        if (!node.isMissingNode() && !node.isNull() && node.asLong() != 0 && !ids.contains(node.asLong())) {
+            ids.add(node.asLong());
+        }
     }
 }

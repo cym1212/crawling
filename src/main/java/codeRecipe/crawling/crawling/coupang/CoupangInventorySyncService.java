@@ -81,8 +81,11 @@ public class CoupangInventorySyncService {
         return items;
     }
 
-    /** 수집 → 상품명 매핑 → upsert. HTTP는 트랜잭션 밖에서 끝내고 saveAll만 저장 트랜잭션. */
-    public int syncInventory() {
+    /**
+     * 수집 → 상품명 매핑 → upsert. HTTP는 트랜잭션 밖에서 끝내고 saveAll만 저장 트랜잭션.
+     * @return 이번 동기화로 저장된 재고 스냅샷 전체
+     */
+    public List<CoupangInventory> syncInventory() {
         List<InventoryItem> items = fetchAllInventory();
 
         Map<Long, String> nameByVendorItemId = new HashMap<>();
@@ -119,9 +122,9 @@ public class CoupangInventorySyncService {
             }
         }
         // 이번 수집에 없는 상품(판매 종료 등)은 삭제하지 않음 — 오래된 collected_at으로 자연 구분
-        coupangInventoryRepository.saveAll(toSave);
-        log.info("쿠팡 재고 동기화 완료 saved={} collectedAt={}", toSave.size(), collectedAt);
-        return toSave.size();
+        List<CoupangInventory> saved = coupangInventoryRepository.saveAll(toSave);
+        log.info("쿠팡 재고 동기화 완료 saved={} collectedAt={}", saved.size(), collectedAt);
+        return saved;
     }
 
     private void sleep(long millis) {

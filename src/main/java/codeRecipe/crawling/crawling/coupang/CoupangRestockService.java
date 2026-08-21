@@ -79,16 +79,21 @@ public class CoupangRestockService {
         return saved;
     }
 
-    /** 제안 생성 후 슬랙 알림. 수동 트리거에서 결과 확인용으로 메시지를 반환한다. */
-    public String generateAndNotify() {
+    /** 수동 트리거/스케줄 실행 결과 (제안 상세 목록 포함) */
+    public record RestockRunResult(int suggestionCount, boolean slackSent, String slackMessage,
+                                   List<CoupangRestockSuggestion> suggestions) {
+    }
+
+    /** 제안 생성 후 슬랙 알림. 생성된 제안 상세를 포함한 결과를 반환한다. */
+    public RestockRunResult generateAndNotify() {
         List<CoupangRestockSuggestion> suggestions = generateSuggestions();
         if (suggestions.isEmpty()) {
             log.info("쿠팡 재입고 제안 없음");
-            return "재입고 제안 없음";
+            return new RestockRunResult(0, false, "재입고 제안 없음 (모든 상품 재고 충분 또는 판매 이력 없음)", suggestions);
         }
         String message = buildSlackMessage(suggestions);
         slackWebhookService.sendMessage(message);
-        return message;
+        return new RestockRunResult(suggestions.size(), true, message, suggestions);
     }
 
     private String buildSlackMessage(List<CoupangRestockSuggestion> suggestions) {

@@ -1,5 +1,7 @@
 package codeRecipe.crawling.crawling.coupang;
 
+import codeRecipe.crawling.crawling.domain.CoupangInventory;
+import codeRecipe.crawling.crawling.domain.CoupangProduct;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -10,6 +12,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 수동 트리거 엔드포인트 (CrawlingController 스타일).
@@ -29,51 +35,62 @@ public class CoupangSyncController {
     private final CoupangInternalAuth internalAuth;
 
     @Operation(summary = "① 상품명 매핑 동기화",
-            description = "쿠팡 상품 목록/상세 API를 호출해 옵션ID(vendorItemId) ↔ 상품명/옵션명 매핑을 "
-                    + "coupang_product 테이블에 저장한다. 재고 API 응답에는 상품명이 없어서 이 매핑이 필요하다. "
+            description = "쿠팡 상품 목록/상세 API를 호출해 계정의 전체 상품(카테고리 무관)의 "
+                    + "옵션ID(vendorItemId) ↔ 상품명/옵션명 매핑을 coupang_product 테이블에 저장한다. "
+                    + "재고 API 응답에는 상품명이 없어서 이 매핑이 필요하다. "
                     + "⏱️ 첫 실행은 상품 수만큼 상세 API를 호출하므로 수십 초~수 분 소요. "
                     + "이후 실행은 신규/이름변경 상품만 처리해서 빠르다. "
-                    + "forceRefresh=true면 전체 상품을 다시 조회한다(옵션명 변경까지 반영).")
+                    + "응답: 이번에 신규/갱신된 매핑 상세 목록. forceRefresh=true면 전체 상품을 다시 조회한다.")
     @PostMapping("/coupang/sync/products")
-    public ResponseEntity<String> syncProducts(
+    public ResponseEntity<Object> syncProducts(
             @Parameter(description = "내부 인증 토큰 (application-coupang.yml의 coupang.internal.token 값)")
             @RequestHeader(value = "X-Internal-Token", required = false) String token,
             @Parameter(description = "true면 이미 매핑된 상품도 상세 조회를 다시 수행")
             @RequestParam(defaultValue = "false") boolean forceRefresh) {
         if (!internalAuth.isAuthorized(token)) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("unauthorized");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "unauthorized"));
         }
-        int saved = productSyncService.syncProducts(forceRefresh);
-        return ResponseEntity.ok("쿠팡 상품 매핑 동기화 완료: " + saved + "건");
+        List<CoupangProduct> saved = productSyncService.syncProducts(forceRefresh);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("result", "상품 매핑 동기화 완료 - 신규/갱신 " + saved.size() + "건 (변경 없는 기존 매핑은 미포함)");
+        body.put("savedCount", saved.size());
+        body.put("items", saved);
+        return ResponseEntity.ok(body);
     }
 
     @Operation(summary = "② 로켓창고 재고 동기화",
-            description = "쿠팡 로켓창고 재고 API를 전체 페이징 조회해서 옵션(SKU)별 주문가능수량과 "
+            description = "쿠팡 로켓창고 재고 API를 전체 페이징 조회해서 계정의 전체 옵션(SKU)별 주문가능수량과 "
                     + "최근 30일 판매량을 coupang_inventory 테이블에 최신 스냅샷으로 저장(upsert)한다. "
                     + "①에서 수집한 매핑으로 상품명을 함께 채운다 (매핑 전이면 상품명 NULL). "
-                    + "30-we.com 재고 현황 화면이 이 테이블을 읽는다.")
+                    + "30-we.com 재고 현황 화면이 이 테이블을 읽는다. 응답: 저장된 재고 스냅샷 전체 목록.")
     @PostMapping("/coupang/sync/inventory")
-    public ResponseEntity<String> syncInventory(
+    public ResponseEntity<Object> syncInventory(
             @Parameter(description = "내부 인증 토큰 (application-coupang.yml의 coupang.internal.token 값)")
             @RequestHeader(value = "X-Internal-Token", required = false) String token) {
         if (!internalAuth.isAuthorized(token)) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("unauthorized");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "unauthorized"));
         }
-        int saved = inventorySyncService.syncInventory();
-        return ResponseEntity.ok("쿠팡 재고 동기화 완료: " + saved + "건");
+        List<CoupangInventory> saved = inventorySyncService.syncInventory();
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("result", "재고 동기화 완료 - " + saved.size() + "건");
+        body.put("savedCount", saved.size());
+        body.put("collectedAt", saved.isEmpty() ? null : saved.get(0).getCollectedAt());
+        body.put("items", saved);
+        return ResponseEntity.ok(body);
     }
 
     @Operation(summary = "③ 부족 재고 계산 + 슬랙 알림",
             description = "②의 최신 재고 스냅샷을 기준으로 상품별 재고 소진 예상일을 계산한다 "
                     + "(일평균 판매 = 최근 30일 판매량 ÷ 30). 소진 예상이 임계일수(기본 7일) 이내면 "
                     + "목표일수(기본 21일)치를 채우는 입고 제안을 coupang_restock_suggestion 테이블에 생성하고 "
-                    + "슬랙으로 알림을 보낸다. 같은 상품은 하루 1회만 제안. 기준값은 yml(coupang.restock.*)로 조정 가능.")
+                    + "슬랙으로 알림을 보낸다. 같은 상품은 하루 1회만 제안. 기준값은 yml(coupang.restock.*)로 조정 가능. "
+                    + "응답: 생성된 제안 상세 목록 + 슬랙 발송 여부/메시지.")
     @PostMapping("/coupang/restock")
-    public ResponseEntity<String> restock(
+    public ResponseEntity<Object> restock(
             @Parameter(description = "내부 인증 토큰 (application-coupang.yml의 coupang.internal.token 값)")
             @RequestHeader(value = "X-Internal-Token", required = false) String token) {
         if (!internalAuth.isAuthorized(token)) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("unauthorized");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "unauthorized"));
         }
         return ResponseEntity.ok(restockService.generateAndNotify());
     }
