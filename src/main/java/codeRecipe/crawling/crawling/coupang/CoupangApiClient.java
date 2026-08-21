@@ -54,6 +54,19 @@ public class CoupangApiClient {
         return getRocketGrowthInventorySummaries(null);
     }
 
+    /**
+     * 로켓그로스 주문 목록 조회 (결제일 기준, 1페이지)
+     * 호출 제한: 분당 50회, 조회 범위 최대 30일
+     * @param paidDateFrom yyyyMMdd
+     * @param paidDateTo   yyyyMMdd
+     */
+    public JsonNode getRocketGrowthOrders(String paidDateFrom, String paidDateTo, String nextToken) {
+        String path = "/v2/providers/rg_open_api/apis/api/v1/vendors/" + properties.getVendorId() + "/rg/orders";
+        String query = "paidDateFrom=" + paidDateFrom + "&paidDateTo=" + paidDateTo
+                + ((nextToken == null || nextToken.isBlank()) ? "" : "&nextToken=" + nextToken);
+        return getWithRetry(path, query);
+    }
+
     /** 상품 목록 페이징 조회 (sellerProductId/sellerProductName, vendorItemId 없음) */
     public JsonNode getSellerProducts(String nextToken) {
         String path = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products";

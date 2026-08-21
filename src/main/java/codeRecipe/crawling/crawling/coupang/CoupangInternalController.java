@@ -32,7 +32,8 @@ public class CoupangInternalController {
     private final CoupangInternalAuth internalAuth;
 
     @Operation(summary = "실시간 재고 조회",
-            description = "쿠팡 로켓창고 재고를 라이브로 전체 페이징 조회해서 반환한다 (DB의 coupang_inventory는 읽지 않음). "
+            description = "쿠팡 로켓그로스 재고를 라이브로 전체 페이징 조회해서 즉시 반환하고, "
+                    + "조회 결과는 coupang_inventory 스냅샷에도 반영한다 (마지막 동기화 시각 갱신. 저장 실패해도 응답은 정상). "
                     + "60초 TTL 캐시가 있어 연속 호출 시 두 번째부터는 즉시 응답하며, 여러 사용자가 동시에 눌러도 "
                     + "쿠팡 호출은 1회만 나간다. 오류: 토큰 불일치 401 {\"error\":\"unauthorized\"}, "
                     + "쿠팡 장애/키 미활성화 502 {\"error\":\"coupang_api_error\"}.")

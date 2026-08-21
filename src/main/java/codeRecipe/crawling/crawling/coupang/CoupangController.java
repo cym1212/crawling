@@ -19,7 +19,7 @@ public class CoupangController {
     private final CoupangApiClient coupangApiClient;
 
     @Operation(summary = "재고 API 원본 응답 조회 (1페이지)",
-            description = "쿠팡 로켓창고 재고 API의 첫 페이지 응답 JSON을 가공 없이 그대로 반환한다. "
+            description = "쿠팡 로켓그로스 재고 API의 첫 페이지 응답 JSON을 가공 없이 그대로 반환한다. "
                     + "응답 필드 구조 확인용 디버그 엔드포인트.")
     @GetMapping("/inventory")
     public JsonNode inventory() {

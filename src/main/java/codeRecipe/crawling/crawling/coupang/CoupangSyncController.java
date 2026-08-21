@@ -2,6 +2,7 @@ package codeRecipe.crawling.crawling.coupang;
 
 import codeRecipe.crawling.crawling.domain.CoupangInventory;
 import codeRecipe.crawling.crawling.domain.CoupangProduct;
+import codeRecipe.crawling.crawling.domain.CoupangSales;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -13,6 +14,8 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,9 +32,12 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class CoupangSyncController {
 
+    private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
+
     private final CoupangProductSyncService productSyncService;
     private final CoupangInventorySyncService inventorySyncService;
     private final CoupangRestockService restockService;
+    private final CoupangOrderSyncService orderSyncService;
     private final CoupangInternalAuth internalAuth;
 
     @Operation(summary = "① 상품명 매핑 동기화",
@@ -58,8 +64,8 @@ public class CoupangSyncController {
         return ResponseEntity.ok(body);
     }
 
-    @Operation(summary = "② 로켓창고 재고 동기화",
-            description = "쿠팡 로켓창고 재고 API를 전체 페이징 조회해서 계정의 전체 옵션(SKU)별 주문가능수량과 "
+    @Operation(summary = "② 로켓그로스 재고 동기화",
+            description = "쿠팡 로켓그로스 재고 API를 전체 페이징 조회해서 계정의 전체 옵션(SKU)별 주문가능수량과 "
                     + "최근 30일 판매량을 coupang_inventory 테이블에 최신 스냅샷으로 저장(upsert)한다. "
                     + "①에서 수집한 매핑으로 상품명을 함께 채운다 (매핑 전이면 상품명 NULL). "
                     + "30-we.com 재고 현황 화면이 이 테이블을 읽는다. 응답: 저장된 재고 스냅샷 전체 목록.")
@@ -75,6 +81,34 @@ public class CoupangSyncController {
         body.put("result", "재고 동기화 완료 - " + saved.size() + "건");
         body.put("savedCount", saved.size());
         body.put("collectedAt", saved.isEmpty() ? null : saved.get(0).getCollectedAt());
+        body.put("items", saved);
+        return ResponseEntity.ok(body);
+    }
+
+    @Operation(summary = "④ 판매(주문) 수집",
+            description = "쿠팡 주문 API를 하루 단위로 조회해서 '결제일 × 옵션'별 판매 수량/매출액을 "
+                    + "coupang_sales 테이블에 집계 저장한다. 같은 날짜를 재수집하면 덮어쓰므로(멱등) 안전하다. "
+                    + "쿠팡은 과거 30일까지만 제공하므로 배포 직후 30일 백필 1회 권장 "
+                    + "(예: startDate=30일 전, endDate=오늘). 파라미터 생략 시 어제~오늘 수집. "
+                    + "스케줄러는 매일 05:30에 최근 3일 창을 자동 수집한다. "
+                    + "응답: 저장된 일별 집계 행 목록. 주문에서 발견된 미매핑 상품명은 coupang_product에도 보강된다.")
+    @PostMapping("/coupang/sync/orders")
+    public ResponseEntity<Object> syncOrders(
+            @Parameter(description = "내부 인증 토큰 (application-coupang.yml의 coupang.internal.token 값)")
+            @RequestHeader(value = "X-Internal-Token", required = false) String token,
+            @Parameter(description = "수집 시작일 (yyyy-MM-dd, 생략 시 어제)")
+            @RequestParam(required = false) String startDate,
+            @Parameter(description = "수집 종료일 (yyyy-MM-dd, 생략 시 오늘)")
+            @RequestParam(required = false) String endDate) {
+        if (!internalAuth.isAuthorized(token)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "unauthorized"));
+        }
+        LocalDate from = startDate != null ? LocalDate.parse(startDate) : LocalDate.now(SEOUL).minusDays(1);
+        LocalDate to = endDate != null ? LocalDate.parse(endDate) : LocalDate.now(SEOUL);
+        List<CoupangSales> saved = orderSyncService.syncOrders(from, to);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("result", "판매 수집 완료 (" + from + " ~ " + to + ") - 일별 집계 " + saved.size() + "행");
+        body.put("savedCount", saved.size());
         body.put("items", saved);
         return ResponseEntity.ok(body);
     }

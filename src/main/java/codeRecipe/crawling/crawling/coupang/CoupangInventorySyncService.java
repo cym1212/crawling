@@ -86,6 +86,22 @@ public class CoupangInventorySyncService {
      * @return 이번 동기화로 저장된 재고 스냅샷 전체
      */
     public List<CoupangInventory> syncInventory() {
+        List<CoupangInventory> saved = saveSnapshot(prepareSnapshot());
+        log.info("쿠팡 재고 동기화 완료 saved={}", saved.size());
+        return saved;
+    }
+
+    /** 스냅샷 저장. 실시간 조회 경로에서는 실패해도 응답에 영향 없도록 별도 호출한다. */
+    public List<CoupangInventory> saveSnapshot(List<CoupangInventory> snapshot) {
+        // 이번 수집에 없는 상품(판매 종료 등)은 삭제하지 않음 — 오래된 collected_at으로 자연 구분
+        return coupangInventoryRepository.saveAll(snapshot);
+    }
+
+    /**
+     * 쿠팡 라이브 조회 + 상품명 매핑 + 기존 행 병합까지 마친 스냅샷 생성 (저장은 하지 않음).
+     * 실시간 내부 API와 정기 동기화가 공유하는 공통 경로.
+     */
+    public List<CoupangInventory> prepareSnapshot() {
         List<InventoryItem> items = fetchAllInventory();
 
         Map<Long, String> nameByVendorItemId = new HashMap<>();
@@ -121,10 +137,7 @@ public class CoupangInventorySyncService {
                         .build());
             }
         }
-        // 이번 수집에 없는 상품(판매 종료 등)은 삭제하지 않음 — 오래된 collected_at으로 자연 구분
-        List<CoupangInventory> saved = coupangInventoryRepository.saveAll(toSave);
-        log.info("쿠팡 재고 동기화 완료 saved={} collectedAt={}", saved.size(), collectedAt);
-        return saved;
+        return toSave;
     }
 
     private void sleep(long millis) {

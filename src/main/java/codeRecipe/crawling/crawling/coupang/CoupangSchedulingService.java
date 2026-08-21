@@ -6,6 +6,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
+
 /**
  * 쿠팡 관련 스케줄 잡. 기존 크롤링(01~05시)·슬랙 보고(10시)와 분리 운영.
  * 스케줄러 풀 사이즈가 1이라 모든 잡은 순차 실행된다.
@@ -15,10 +18,22 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class CoupangSchedulingService {
 
+    private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
+
     private final CoupangProductSyncService productSyncService;
     private final CoupangInventorySyncService inventorySyncService;
     private final CoupangRestockService restockService;
+    private final CoupangOrderSyncService orderSyncService;
     private final SlackWebhookService slackWebhookService;
+
+    /** 판매(주문) 수집 (기본: 매일 05:30). 지연 반영 보정을 위해 최근 3일 창을 다시 수집 (멱등) */
+    @Scheduled(cron = "${coupang.schedule.order-cron:0 30 5 * * *}", zone = "Asia/Seoul")
+    public void runOrderSync() {
+        runSafely("쿠팡 판매(주문) 수집", () -> {
+            LocalDate yesterday = LocalDate.now(SEOUL).minusDays(1);
+            orderSyncService.syncOrders(yesterday.minusDays(2), yesterday);
+        });
+    }
 
     /** 상품명 매핑 동기화 (기본: 매일 06:00) */
     @Scheduled(cron = "${coupang.schedule.product-cron:0 0 6 * * *}", zone = "Asia/Seoul")
