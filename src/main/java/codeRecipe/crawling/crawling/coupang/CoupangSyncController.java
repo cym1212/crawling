@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -38,6 +39,7 @@ public class CoupangSyncController {
     private final CoupangInventorySyncService inventorySyncService;
     private final CoupangRestockService restockService;
     private final CoupangOrderSyncService orderSyncService;
+    private final CoupangApiClient coupangApiClient;
     private final CoupangInternalAuth internalAuth;
 
     @Operation(summary = "① 상품명 매핑 동기화",
@@ -111,6 +113,30 @@ public class CoupangSyncController {
         body.put("savedCount", saved.size());
         body.put("items", saved);
         return ResponseEntity.ok(body);
+    }
+
+    @Operation(summary = "④-디버그 주문 API 원본 응답 조회",
+            description = "지정한 날짜 하루의 쿠팡 주문 API 원본 JSON(1페이지)을 가공 없이 그대로 반환한다. "
+                    + "판매 수집 결과가 비었을 때 쿠팡이 실제로 뭘 돌려주는지 확인하는 용도. DB 저장 없음.")
+    @GetMapping("/coupang/orders/raw")
+    public ResponseEntity<Object> ordersRaw(
+            @Parameter(description = "내부 인증 토큰 (application-coupang.yml의 coupang.internal.token 값)")
+            @RequestHeader(value = "X-Internal-Token", required = false) String token,
+            @Parameter(description = "조회할 날짜 (yyyy-MM-dd, 생략 시 어제)")
+            @RequestParam(required = false) String date) {
+        if (!internalAuth.isAuthorized(token)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "unauthorized"));
+        }
+        LocalDate target = date != null ? LocalDate.parse(date) : LocalDate.now(SEOUL).minusDays(1);
+        String dateParam = target.format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE);
+        try {
+            return ResponseEntity.ok(coupangApiClient.getRocketGrowthOrders(dateParam, dateParam, null));
+        } catch (CoupangApiException e) {
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of(
+                    "error", "coupang_api_error",
+                    "status", e.getStatus() == null ? "none" : e.getStatus().toString(),
+                    "message", e.getMessage() == null ? "" : e.getMessage()));
+        }
     }
 
     @Operation(summary = "③ 부족 재고 계산 + 슬랙 알림",
