@@ -6,14 +6,18 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
-import java.util.LinkedHashMap;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.Map;
+import java.util.TreeMap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CoupangOrderSyncServiceTest {
+
+    private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -21,67 +25,101 @@ class CoupangOrderSyncServiceTest {
         return objectMapper.readTree(content);
     }
 
+    private static long epochMillis(int year, int month, int day, int hour) {
+        return ZonedDateTime.of(year, month, day, hour, 0, 0, 0, SEOUL).toInstant().toEpochMilli();
+    }
+
     @Test
-    void 주문_항목을_옵션별로_집계한다() throws Exception {
-        JsonNode data = json("""
+    void 결제일과_옵션별로_집계한다_단가는_소수점_문자열도_파싱한다() throws Exception {
+        long aug7 = epochMillis(2026, 8, 7, 10);
+        long aug8 = epochMillis(2026, 8, 8, 15);
+        JsonNode data = json(String.format("""
                 [
-                  {"orderId": 1, "orderItems": [
-                    {"vendorItemId": 100, "productName": "고래 공책", "salesQuantity": 2, "unitSalesPrice": 5000},
-                    {"vendorItemId": 200, "productName": "머리끈", "salesQuantity": 1, "unitSalesPrice": 3000}
+                  {"orderId": 1, "paidAt": %d, "orderItems": [
+                    {"vendorItemId": 100, "productName": "고래 공책", "salesQuantity": 2, "unitSalesPrice": "4900.0"}
                   ]},
-                  {"orderId": 2, "orderItems": [
-                    {"vendorItemId": 100, "productName": "고래 공책", "salesQuantity": 3, "unitSalesPrice": 5000}
+                  {"orderId": 2, "paidAt": %d, "orderItems": [
+                    {"vendorItemId": 100, "productName": "고래 공책", "salesQuantity": 1, "unitSalesPrice": "4900.0"},
+                    {"vendorItemId": 200, "productName": "머리끈", "salesQuantity": 1, "unitSalesPrice": "3000.0"}
                   ]}
                 ]
-                """);
-        Map<Long, OrderAggregate> result = CoupangOrderSyncService.aggregatePage(data, new LinkedHashMap<>());
+                """, aug7, aug8));
+
+        Map<LocalDate, Map<Long, OrderAggregate>> result =
+                CoupangOrderSyncService.aggregateOrders(data, new TreeMap<>());
 
         assertEquals(2, result.size());
-        assertEquals(5, result.get(100L).getQuantity());          // 2 + 3
-        assertEquals(25000L, result.get(100L).getAmount());       // 2*5000 + 3*5000
-        assertEquals("고래 공책", result.get(100L).getProductName());
-        assertEquals(1, result.get(200L).getQuantity());
-        assertEquals(3000L, result.get(200L).getAmount());
+        Map<Long, OrderAggregate> day7 = result.get(LocalDate.of(2026, 8, 7));
+        assertEquals(2, day7.get(100L).getQuantity());
+        assertEquals(9800L, day7.get(100L).getAmount());      // 2 × 4900 (문자열 "4900.0" 파싱)
+        assertEquals("고래 공책", day7.get(100L).getProductName());
+
+        Map<Long, OrderAggregate> day8 = result.get(LocalDate.of(2026, 8, 8));
+        assertEquals(1, day8.get(100L).getQuantity());
+        assertEquals(3000L, day8.get(200L).getAmount());
     }
 
     @Test
-    void 여러_페이지를_같은_누적맵에_이어서_집계한다() throws Exception {
-        Map<Long, OrderAggregate> acc = new LinkedHashMap<>();
-        CoupangOrderSyncService.aggregatePage(json("""
-                [{"orderItems": [{"vendorItemId": 100, "salesQuantity": 1, "unitSalesPrice": 1000}]}]
-                """), acc);
-        CoupangOrderSyncService.aggregatePage(json("""
-                [{"orderItems": [{"vendorItemId": 100, "salesQuantity": 2, "unitSalesPrice": 1000}]}]
-                """), acc);
+    void 같은_날_같은_옵션의_여러_주문을_합산한다() throws Exception {
+        long morning = epochMillis(2026, 8, 7, 9);
+        long evening = epochMillis(2026, 8, 7, 21);
+        JsonNode data = json(String.format("""
+                [
+                  {"paidAt": %d, "orderItems": [{"vendorItemId": 100, "salesQuantity": 1, "unitSalesPrice": "1000.0"}]},
+                  {"paidAt": %d, "orderItems": [{"vendorItemId": 100, "salesQuantity": 2, "unitSalesPrice": "1000.0"}]}
+                ]
+                """, morning, evening));
 
-        assertEquals(3, acc.get(100L).getQuantity());
-        assertEquals(3000L, acc.get(100L).getAmount());
+        Map<LocalDate, Map<Long, OrderAggregate>> result =
+                CoupangOrderSyncService.aggregateOrders(data, new TreeMap<>());
+
+        assertEquals(1, result.size());
+        assertEquals(3, result.get(LocalDate.of(2026, 8, 7)).get(100L).getQuantity());
+        assertEquals(3000L, result.get(LocalDate.of(2026, 8, 7)).get(100L).getAmount());
     }
 
     @Test
-    void vendorItemId_없는_항목은_건너뛴다() throws Exception {
-        JsonNode data = json("""
-                [{"orderItems": [
-                  {"vendorItemId": null, "salesQuantity": 1, "unitSalesPrice": 1000},
-                  {"salesQuantity": 1, "unitSalesPrice": 1000}
-                ]}]
-                """);
-        Map<Long, OrderAggregate> result = CoupangOrderSyncService.aggregatePage(data, new LinkedHashMap<>());
+    void 자정_직전_결제는_한국시간_기준_날짜로_버킷팅된다() throws Exception {
+        // 한국시간 8/7 23:30 = UTC 8/7 14:30 — UTC 기준으로도 8/7이지만,
+        // 한국시간 8/8 00:30 = UTC 8/7 15:30 — UTC로 날짜를 자르면 8/7로 잘못 분류되는 케이스
+        long kst0030 = ZonedDateTime.of(2026, 8, 8, 0, 30, 0, 0, SEOUL).toInstant().toEpochMilli();
+        JsonNode data = json(String.format("""
+                [{"paidAt": %d, "orderItems": [{"vendorItemId": 100, "salesQuantity": 1, "unitSalesPrice": "1000.0"}]}]
+                """, kst0030));
+
+        Map<LocalDate, Map<Long, OrderAggregate>> result =
+                CoupangOrderSyncService.aggregateOrders(data, new TreeMap<>());
+
+        assertTrue(result.containsKey(LocalDate.of(2026, 8, 8))); // 한국시간 기준 8/8
+    }
+
+    @Test
+    void paidAt이나_vendorItemId가_없으면_건너뛴다() throws Exception {
+        long aug7 = epochMillis(2026, 8, 7, 10);
+        JsonNode data = json(String.format("""
+                [
+                  {"orderItems": [{"vendorItemId": 100, "salesQuantity": 1, "unitSalesPrice": "1000.0"}]},
+                  {"paidAt": %d, "orderItems": [
+                    {"vendorItemId": null, "salesQuantity": 1, "unitSalesPrice": "1000.0"},
+                    {"salesQuantity": 1, "unitSalesPrice": "1000.0"}
+                  ]}
+                ]
+                """, aug7));
+
+        Map<LocalDate, Map<Long, OrderAggregate>> result =
+                CoupangOrderSyncService.aggregateOrders(data, new TreeMap<>());
         assertTrue(result.isEmpty());
     }
 
     @Test
-    void 상품명은_처음_발견된_값을_유지한다() throws Exception {
-        JsonNode data = json("""
-                [{"orderItems": [
-                  {"vendorItemId": 100, "productName": null, "salesQuantity": 1, "unitSalesPrice": 1000},
-                  {"vendorItemId": 100, "productName": "이름", "salesQuantity": 1, "unitSalesPrice": 1000},
-                  {"vendorItemId": 200, "salesQuantity": 1, "unitSalesPrice": 500}
-                ]}]
-                """);
-        Map<Long, OrderAggregate> result = CoupangOrderSyncService.aggregatePage(data, new LinkedHashMap<>());
-        assertEquals("이름", result.get(100L).getProductName()); // null 이후 발견된 이름으로 채움
-        assertNull(result.get(200L).getProductName());
-        assertEquals(2, result.get(100L).getQuantity());
+    void paidAt이_숫자_문자열이어도_파싱한다() throws Exception {
+        long aug7 = epochMillis(2026, 8, 7, 10);
+        JsonNode data = json(String.format("""
+                [{"paidAt": "%d", "orderItems": [{"vendorItemId": 100, "salesQuantity": 1, "unitSalesPrice": "1000.0"}]}]
+                """, aug7));
+
+        Map<LocalDate, Map<Long, OrderAggregate>> result =
+                CoupangOrderSyncService.aggregateOrders(data, new TreeMap<>());
+        assertEquals(1, result.get(LocalDate.of(2026, 8, 7)).get(100L).getQuantity());
     }
 }
