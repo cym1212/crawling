@@ -9,7 +9,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -39,7 +38,7 @@ public class CoupangSyncController {
     private final CoupangInventorySyncService inventorySyncService;
     private final CoupangRestockService restockService;
     private final CoupangOrderSyncService orderSyncService;
-    private final CoupangApiClient coupangApiClient;
+    private final CoupangRestockProperties restockProperties;
     private final CoupangInternalAuth internalAuth;
 
     @Operation(summary = "① 상품명 매핑 동기화",
@@ -115,57 +114,38 @@ public class CoupangSyncController {
         return ResponseEntity.ok(body);
     }
 
-    @Operation(summary = "④-디버그 주문 API 원본 응답 조회",
-            description = "쿠팡 주문 API 원본 JSON(1페이지)을 가공 없이 그대로 반환한다. "
-                    + "date(하루) 또는 from/to(기간)로 조회. 판매 수집 결과가 비었을 때 쿠팡이 실제로 뭘 돌려주는지 "
-                    + "확인하는 용도. DB 저장 없음.")
-    @GetMapping("/coupang/orders/raw")
-    public ResponseEntity<Object> ordersRaw(
-            @Parameter(description = "내부 인증 토큰 (application-coupang.yml의 coupang.internal.token 값)")
-            @RequestHeader(value = "X-Internal-Token", required = false) String token,
-            @Parameter(description = "조회할 날짜 (yyyy-MM-dd, 생략 시 어제)")
-            @RequestParam(required = false) String date,
-            @Parameter(description = "기간 시작일 (yyyy-MM-dd, date보다 우선)")
-            @RequestParam(required = false) String from,
-            @Parameter(description = "기간 종료일 (yyyy-MM-dd, from과 함께 사용)")
-            @RequestParam(required = false) String to) {
-        if (!internalAuth.isAuthorized(token)) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "unauthorized"));
-        }
-        LocalDate fromDate;
-        LocalDate toDate;
-        if (from != null && to != null) {
-            fromDate = LocalDate.parse(from);
-            toDate = LocalDate.parse(to);
-        } else {
-            LocalDate target = date != null ? LocalDate.parse(date) : LocalDate.now(SEOUL).minusDays(1);
-            fromDate = target;
-            toDate = target;
-        }
-        java.time.format.DateTimeFormatter basic = java.time.format.DateTimeFormatter.BASIC_ISO_DATE;
-        try {
-            return ResponseEntity.ok(coupangApiClient.getRocketGrowthOrders(
-                    fromDate.format(basic), toDate.format(basic), null));
-        } catch (CoupangApiException e) {
-            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of(
-                    "error", "coupang_api_error",
-                    "status", e.getStatus() == null ? "none" : e.getStatus().toString(),
-                    "message", e.getMessage() == null ? "" : e.getMessage()));
-        }
-    }
-
     @Operation(summary = "③ 부족 재고 계산 + 슬랙 알림",
-            description = "②의 최신 재고 스냅샷을 기준으로 상품별 재고 소진 예상일을 계산한다 "
-                    + "(일평균 판매 = 최근 30일 판매량 ÷ 30). 소진 예상이 임계일수(기본 7일) 이내면 "
-                    + "목표일수(기본 21일)치를 채우는 입고 제안을 coupang_restock_suggestion 테이블에 생성하고 "
-                    + "슬랙으로 알림을 보낸다. 같은 상품은 하루 1회만 제안. 기준값은 yml(coupang.restock.*)로 조정 가능. "
-                    + "응답: 생성된 제안 상세 목록 + 슬랙 발송 여부/메시지.")
+            description = "②의 최신 재고 스냅샷과 ④의 일별 판매 이력으로 상품별 재고 소진 예상일을 계산한다(v2). "
+                    + "일평균 = 7일 속도와 30일 속도 중 빠른 쪽 (신상품은 실제 판매 경과일 보정, "
+                    + "일별 데이터 없는 상품은 쿠팡 30일 집계로 폴백). 소진 예상이 임계일수(기본 7일) 이내면 "
+                    + "목표일수(기본 21일)치를 채우는 입고 제안을 생성하고 슬랙으로 알림(급증 상품 🔥 표시). "
+                    + "같은 상품은 하루 1회만 제안. 기준값은 yml(coupang.restock.*)로 조정 가능. "
+                    + "dryRun=true면 저장/슬랙 없이 계산 결과만 반환하며, 이때만 thresholdDays/targetDays로 "
+                    + "기준을 바꿔 실험할 수 있다.")
     @PostMapping("/coupang/restock")
     public ResponseEntity<Object> restock(
             @Parameter(description = "내부 인증 토큰 (application-coupang.yml의 coupang.internal.token 값)")
-            @RequestHeader(value = "X-Internal-Token", required = false) String token) {
+            @RequestHeader(value = "X-Internal-Token", required = false) String token,
+            @Parameter(description = "true면 저장/슬랙 없이 계산 결과만 반환 (테스트용)")
+            @RequestParam(defaultValue = "false") boolean dryRun,
+            @Parameter(description = "[dryRun 전용] 임계일수 오버라이드 (기본: 설정값)")
+            @RequestParam(required = false) Integer thresholdDays,
+            @Parameter(description = "[dryRun 전용] 목표일수 오버라이드 (기본: 설정값)")
+            @RequestParam(required = false) Integer targetDays) {
         if (!internalAuth.isAuthorized(token)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "unauthorized"));
+        }
+        if (dryRun) {
+            int threshold = thresholdDays != null ? thresholdDays : restockProperties.getThresholdDays();
+            int target = targetDays != null ? targetDays : restockProperties.getTargetDays();
+            List<CoupangRestockService.SimulatedSuggestion> simulated = restockService.simulate(threshold, target);
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("result", String.format("드라이런 (임계 %d일 / 목표 %d일) - 제안 대상 %d건 (저장/슬랙 없음)",
+                    threshold, target, simulated.size()));
+            body.put("thresholdDays", threshold);
+            body.put("targetDays", target);
+            body.put("items", simulated);
+            return ResponseEntity.ok(body);
         }
         return ResponseEntity.ok(restockService.generateAndNotify());
     }

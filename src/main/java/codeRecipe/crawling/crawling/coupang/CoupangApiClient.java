@@ -50,10 +50,6 @@ public class CoupangApiClient {
         return getWithRetry(path, query);
     }
 
-    public JsonNode getRocketGrowthInventorySummaries() {
-        return getRocketGrowthInventorySummaries(null);
-    }
-
     /**
      * 로켓그로스 주문 목록 조회 (결제일 기준, 1페이지)
      * 호출 제한: 분당 50회, 조회 범위 최대 30일
