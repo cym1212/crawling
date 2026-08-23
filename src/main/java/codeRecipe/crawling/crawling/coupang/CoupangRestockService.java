@@ -1,6 +1,5 @@
 package codeRecipe.crawling.crawling.coupang;
 
-import codeRecipe.crawling.crawling.SlackWebhookService;
 import codeRecipe.crawling.crawling.domain.CoupangInventory;
 import codeRecipe.crawling.crawling.domain.CoupangRestockSuggestion;
 import codeRecipe.crawling.crawling.domain.CoupangSales;
@@ -39,7 +38,7 @@ public class CoupangRestockService {
     private final CoupangRestockSuggestionRepository suggestionRepository;
     private final CoupangSalesRepository coupangSalesRepository;
     private final CoupangRestockProperties restockProperties;
-    private final SlackWebhookService slackWebhookService;
+    private final CoupangSlackNotifier coupangSlackNotifier;
 
     /** 수동 트리거/스케줄 실행 결과 (제안 상세 목록 포함) */
     public record RestockRunResult(int suggestionCount, boolean slackSent, String slackMessage,
@@ -165,8 +164,8 @@ public class CoupangRestockService {
 
         if (computed.isEmpty()) {
             if (mismatchWarning != null) {
-                slackWebhookService.sendMessage(mismatchWarning);
-                return new RestockRunResult(0, true, mismatchWarning, List.of());
+                boolean sent = coupangSlackNotifier.send(mismatchWarning);
+                return new RestockRunResult(0, sent, mismatchWarning, List.of());
             }
             log.info("쿠팡 재입고 제안 없음");
             return new RestockRunResult(0, false, "재입고 제안 없음 (모든 상품 재고 충분 또는 판매 이력 없음)", List.of());
@@ -176,9 +175,9 @@ public class CoupangRestockService {
         if (mismatchWarning != null) {
             message = message + "\n\n" + mismatchWarning;
         }
-        slackWebhookService.sendMessage(message);
+        boolean sent = coupangSlackNotifier.send(message);
         List<CoupangRestockSuggestion> suggestions = computed.stream().map(Computed::saved).toList();
-        return new RestockRunResult(suggestions.size(), true, message, suggestions);
+        return new RestockRunResult(suggestions.size(), sent, message, suggestions);
     }
 
     private String buildMismatchWarning(List<CoupangInventory> snapshot,

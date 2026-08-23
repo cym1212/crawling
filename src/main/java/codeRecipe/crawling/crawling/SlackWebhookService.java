@@ -77,31 +77,6 @@ public class SlackWebhookService {
         }
     }
 
-    /**
-     * 임의 텍스트 메시지 전송. org.json으로 페이로드를 만들어
-     * 메시지에 따옴표/개행이 있어도 JSON이 깨지지 않는다.
-     */
-    public void sendMessage(String text) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("Content-Type", "application/json");
-
-        String payload = new org.json.JSONObject().put("text", text).toString();
-
-        HttpEntity<String> request = new HttpEntity<>(payload, headers);
-        ResponseEntity<String> response = restTemplate.exchange(
-                webhookUrl,
-                HttpMethod.POST,
-                request,
-                String.class
-        );
-
-        if (response.getStatusCode().is2xxSuccessful()) {
-            System.out.println("Slack message sent successfully.");
-        } else {
-            System.err.println("Failed to send Slack message. Response: " + response.getBody());
-        }
-    }
-
     public void sendCrawlingErrorAlert(java.util.List<String> failedSites) {
         if (failedSites == null || failedSites.isEmpty()) {
             return;

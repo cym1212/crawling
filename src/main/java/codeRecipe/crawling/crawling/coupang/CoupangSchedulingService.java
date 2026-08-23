@@ -1,6 +1,5 @@
 package codeRecipe.crawling.crawling.coupang;
 
-import codeRecipe.crawling.crawling.SlackWebhookService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -24,7 +23,7 @@ public class CoupangSchedulingService {
     private final CoupangInventorySyncService inventorySyncService;
     private final CoupangRestockService restockService;
     private final CoupangOrderSyncService orderSyncService;
-    private final SlackWebhookService slackWebhookService;
+    private final CoupangSlackNotifier coupangSlackNotifier;
 
     /** 판매(주문) 수집 (기본: 매일 05:30). 지연 반영 보정을 위해 최근 3일 창을 다시 수집 (멱등) */
     @Scheduled(cron = "${coupang.schedule.order-cron:0 30 5 * * *}", zone = "Asia/Seoul")
@@ -60,7 +59,7 @@ public class CoupangSchedulingService {
         } catch (Exception e) {
             log.error("{} 실패: {}", jobName, e.getMessage(), e);
             try {
-                slackWebhookService.sendMessage("⚠️ [쿠팡] " + jobName + " 실패: " + e.getMessage());
+                coupangSlackNotifier.send("⚠️ [쿠팡] " + jobName + " 실패: " + e.getMessage());
             } catch (Exception slackError) {
                 log.error("슬랙 오류 알림 전송 실패", slackError);
             }
