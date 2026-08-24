@@ -25,17 +25,29 @@ public class CoupangSlackNotifier {
     @Value("${coupang.slack.webhook-url:}")
     private String webhookUrl;
 
-    /** @return 실제 발송했으면 true (웹훅 미설정 시 false) */
+    @Value("${coupang.slack.order-webhook-url:}")
+    private String orderWebhookUrl;
+
+    /** 부족 재고/수집 경고/잡 실패 알림. @return 실제 발송했으면 true (웹훅 미설정 시 false) */
     public boolean send(String text) {
-        if (webhookUrl == null || webhookUrl.isBlank()) {
-            log.info("쿠팡 슬랙 웹훅 미설정 - 발송 생략. 메시지:\n{}", text);
+        return sendTo(webhookUrl, text, "쿠팡 알림");
+    }
+
+    /** 판매자배송 신규 주문 알림 (별도 웹훅 키 — 미설정 시 발송 안 함) */
+    public boolean sendOrderAlert(String text) {
+        return sendTo(orderWebhookUrl, text, "판매자배송 주문 알림");
+    }
+
+    private boolean sendTo(String url, String text, String label) {
+        if (url == null || url.isBlank()) {
+            log.info("{} 웹훅 미설정 - 발송 생략. 메시지:\n{}", label, text);
             return false;
         }
         HttpHeaders headers = new HttpHeaders();
         headers.set("Content-Type", "application/json");
         // JSONObject로 페이로드 생성 — 상품명의 따옴표/개행이 JSON을 깨뜨리지 않도록
         String payload = new JSONObject().put("text", text).toString();
-        restTemplate.exchange(webhookUrl, HttpMethod.POST, new HttpEntity<>(payload, headers), String.class);
+        restTemplate.exchange(url, HttpMethod.POST, new HttpEntity<>(payload, headers), String.class);
         return true;
     }
 }

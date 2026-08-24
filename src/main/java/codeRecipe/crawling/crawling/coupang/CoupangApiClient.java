@@ -63,6 +63,18 @@ public class CoupangApiClient {
         return getWithRetry(path, query);
     }
 
+    /**
+     * 판매자배송(마켓플레이스) 발주서 목록 조회 — 분단위(timeFrame), 최대 24시간 창.
+     * @param createdAtFromEncoded ISO-8601, '+'는 %2B로 인코딩된 문자열 (예: 2026-08-24T10:00%2B09:00)
+     * @param status ACCEPT(결제완료) 등
+     */
+    public JsonNode getMarketplaceOrderSheets(String createdAtFromEncoded, String createdAtToEncoded, String status) {
+        String path = "/v2/providers/openapi/apis/api/v5/vendors/" + properties.getVendorId() + "/ordersheets";
+        String query = "createdAtFrom=" + createdAtFromEncoded + "&createdAtTo=" + createdAtToEncoded
+                + "&status=" + status + "&searchType=timeFrame";
+        return getWithRetry(path, query);
+    }
+
     /** 상품 목록 페이징 조회 (sellerProductId/sellerProductName, vendorItemId 없음) */
     public JsonNode getSellerProducts(String nextToken) {
         String path = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products";

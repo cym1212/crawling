@@ -23,7 +23,14 @@ public class CoupangSchedulingService {
     private final CoupangInventorySyncService inventorySyncService;
     private final CoupangRestockService restockService;
     private final CoupangOrderSyncService orderSyncService;
+    private final CoupangMarketplaceOrderAlertService marketplaceOrderAlertService;
     private final CoupangSlackNotifier coupangSlackNotifier;
+
+    /** 판매자배송 신규 주문 감지 (기본: 매시 5분부터 10분 간격) */
+    @Scheduled(cron = "${coupang.schedule.marketplace-order-cron:0 5/10 * * * *}", zone = "Asia/Seoul")
+    public void runMarketplaceOrderAlert() {
+        runSafely("판매자배송 주문 알림", () -> marketplaceOrderAlertService.checkAndNotify(false));
+    }
 
     /** 판매(주문) 수집 (기본: 매일 05:30). 지연 반영 보정을 위해 최근 3일 창을 다시 수집 (멱등) */
     @Scheduled(cron = "${coupang.schedule.order-cron:0 30 5 * * *}", zone = "Asia/Seoul")
