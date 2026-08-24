@@ -7,6 +7,7 @@ import codeRecipe.crawling.crawling.domain.SalesRecord;
 import codeRecipe.crawling.crawling.repository.ProductRepository;
 import codeRecipe.crawling.crawling.repository.SalesLocationRepository;
 import codeRecipe.crawling.crawling.repository.SalesRecordRepository;
+import codeRecipe.crawling.crawling.util.BarcodeNormalizer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
@@ -139,9 +140,16 @@ public class YeongpoongPythonScriptExecutor {
        for (JsonNode record : dataNode) {
            // 영풍문고 데이터 필드 추출
            String wname = record.get("WNAME").asText();  // 지점명
-           String barCode = record.get("BAR_CD").asText();  // 바코드 (상품코드로 사용)
+           // 바코드(상품코드)는 30-we.com이 완전일치로 매칭하므로 저장 전 정규화한다.
+           String barCode = BarcodeNormalizer.normalize(record.get("BAR_CD").asText());
            String productTitle = record.get("TTL").asText();  // 상품명
            String publisherName = record.get("PNAME").asText();  // 매입처명 (출판사로 사용)
+
+           // 바코드가 없으면(빈 값) 매칭 불가·유령 레코드가 되므로 저장하지 않는다.
+           if (barCode == null) {
+               log.warn("영풍문고 바코드 없는 레코드 건너뜀: 지점={}, 상품={}", wname, productTitle);
+               continue;
+           }
 
            Long quantity = parseLongSafe(record.get("SALQTY").asText());  // 판매수량
            Long salesAmount = parseLongSafe(record.get("TOTAL").asText());  // 매출금액

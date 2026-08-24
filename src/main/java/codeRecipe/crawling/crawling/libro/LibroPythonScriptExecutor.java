@@ -8,6 +8,7 @@ import codeRecipe.crawling.crawling.domain.SalesRecord;
 import codeRecipe.crawling.crawling.repository.ProductRepository;
 import codeRecipe.crawling.crawling.repository.SalesLocationRepository;
 import codeRecipe.crawling.crawling.repository.SalesRecordRepository;
+import codeRecipe.crawling.crawling.util.BarcodeNormalizer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
@@ -174,9 +175,13 @@ public class LibroPythonScriptExecutor {
         for (List<String> row : jsonData) {
 
             if (row.size() > 1) {
-                String productCode = row.get(0);
+                String productCode = BarcodeNormalizer.normalize(row.get(0));
                 String productName = row.get(1);
                 String publisher = row.get(2);
+                if (productCode == null) {
+                    log.warn("리브로 바코드 없는 레코드 건너뜀: 상품={}", productName);
+                    continue;
+                }
                 Long salesPrice = parseLongSafe(row.get(3));
 
 

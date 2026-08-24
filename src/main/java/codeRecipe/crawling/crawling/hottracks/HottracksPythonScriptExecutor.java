@@ -7,6 +7,7 @@ import codeRecipe.crawling.crawling.domain.SalesRecord;
 import codeRecipe.crawling.crawling.repository.ProductRepository;
 import codeRecipe.crawling.crawling.repository.SalesLocationRepository;
 import codeRecipe.crawling.crawling.repository.SalesRecordRepository;
+import codeRecipe.crawling.crawling.util.BarcodeNormalizer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
@@ -165,7 +166,11 @@ public class HottracksPythonScriptExecutor {
 
                for (JsonNode row : rows) {
                    String productName = row.get(1).asText();
-                   String productCode = row.get(2).asText();
+                   String productCode = BarcodeNormalizer.normalize(row.get(2).asText());
+                   if (productCode == null) {
+                       log.warn("핫트랙스 바코드 없는 레코드 건너뜀: 상품={}", productName);
+                       continue;
+                   }
 //                    Long quantity = Long.parseLong(row.get(3).asText().replace(",", "").trim());
 //                    Long salesAmount = Long.parseLong(row.get(4).asText().replace(",", ""));
 //                    Long actualSales = Long.parseLong(row.get(5).asText().replace(",", ""));
