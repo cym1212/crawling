@@ -2,6 +2,7 @@ package codeRecipe.crawling.crawling.coupang;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -38,16 +39,32 @@ public class CoupangSlackNotifier {
         return sendTo(orderWebhookUrl, text, "판매자배송 주문 알림");
     }
 
+    /**
+     * Block Kit 카드 발송 (부족 재고 알림용). fallbackText는 푸시 알림 미리보기/미지원 클라이언트용 요약.
+     * @return 실제 발송했으면 true (웹훅 미설정 시 false)
+     */
+    public boolean sendCard(String fallbackText, JSONArray blocks) {
+        if (webhookUrl == null || webhookUrl.isBlank()) {
+            log.info("쿠팡 알림 웹훅 미설정 - 카드 발송 생략. 요약:\n{}", fallbackText);
+            return false;
+        }
+        post(webhookUrl, new JSONObject().put("text", fallbackText).put("blocks", blocks).toString());
+        return true;
+    }
+
     private boolean sendTo(String url, String text, String label) {
         if (url == null || url.isBlank()) {
             log.info("{} 웹훅 미설정 - 발송 생략. 메시지:\n{}", label, text);
             return false;
         }
+        // JSONObject로 페이로드 생성 — 상품명의 따옴표/개행이 JSON을 깨뜨리지 않도록
+        post(url, new JSONObject().put("text", text).toString());
+        return true;
+    }
+
+    private void post(String url, String payload) {
         HttpHeaders headers = new HttpHeaders();
         headers.set("Content-Type", "application/json");
-        // JSONObject로 페이로드 생성 — 상품명의 따옴표/개행이 JSON을 깨뜨리지 않도록
-        String payload = new JSONObject().put("text", text).toString();
         restTemplate.exchange(url, HttpMethod.POST, new HttpEntity<>(payload, headers), String.class);
-        return true;
     }
 }

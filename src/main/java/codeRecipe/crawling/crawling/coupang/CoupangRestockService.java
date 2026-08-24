@@ -9,15 +9,21 @@ import codeRecipe.crawling.crawling.repository.CoupangRestockSuggestionRepositor
 import codeRecipe.crawling.crawling.repository.CoupangSalesRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.json.JSONArray;
+import org.json.JSONObject;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -171,11 +177,15 @@ public class CoupangRestockService {
             return new RestockRunResult(0, false, "재입고 제안 없음 (모든 상품 재고 충분 또는 판매 이력 없음)", List.of());
         }
 
-        String message = buildSlackMessage(computed);
+        // 소진 임박 순 정렬 (급한 것이 카드 상단)
+        computed.sort(Comparator.comparing(item -> item.saved().getDaysUntilStockout()));
+
+        String fallbackText = buildFallbackText(computed);
+        boolean sent = coupangSlackNotifier.sendCard(fallbackText, buildBlocks(computed, today));
         if (mismatchWarning != null) {
-            message = message + "\n\n" + mismatchWarning;
+            coupangSlackNotifier.send(mismatchWarning); // 경고는 별도 텍스트 메시지로
         }
-        boolean sent = coupangSlackNotifier.send(message);
+        String message = mismatchWarning != null ? fallbackText + "\n\n" + mismatchWarning : fallbackText;
         List<CoupangRestockSuggestion> suggestions = computed.stream().map(Computed::saved).toList();
         return new RestockRunResult(suggestions.size(), sent, message, suggestions);
     }
@@ -199,28 +209,79 @@ public class CoupangRestockService {
         return null;
     }
 
-    private String buildSlackMessage(List<Computed> computed) {
-        StringBuilder message = new StringBuilder();
-        message.append("📦 *쿠팡 로켓그로스 재입고 제안* (")
-                .append(computed.get(0).saved().getSuggestionDate())
-                .append(")\n\n");
-        int index = 1;
+    // ── 슬랙 Block Kit 카드 (확정 템플릿: 헤더 + 상품별 2×2 필드 + 옵션ID + 구분선 + 기준 푸터) ──
+
+    private static final int MAX_CARD_ITEMS = 20; // Block Kit 50블록 제한 대비 상한
+    private static final DateTimeFormatter CARD_DATE = DateTimeFormatter.ofPattern("M월 d일 (E)", Locale.KOREAN);
+    private static final BigDecimal URGENT_DAYS = BigDecimal.valueOf(3); // 🔴 기준
+
+    private JSONArray buildBlocks(List<Computed> computed, LocalDate today) {
+        JSONArray blocks = new JSONArray();
+        blocks.put(new JSONObject().put("type", "header").put("text",
+                new JSONObject().put("type", "plain_text").put("text", "📦 쿠팡 입고 제안").put("emoji", true)));
+        blocks.put(contextBlock(today.format(CARD_DATE) + " · 총 " + computed.size() + "건"));
+        blocks.put(divider());
+
+        int shown = 0;
         for (Computed item : computed) {
+            if (shown >= MAX_CARD_ITEMS) {
+                break;
+            }
             CoupangRestockSuggestion s = item.saved();
             RestockCalculator.Result basis = item.basis();
-            String name = s.getProductName() != null ? s.getProductName() : "(상품명 미매핑)";
-            message.append(String.format("%d. %s (옵션ID: %d)%s\n", index++, name, s.getVendorItemId(),
-                    basis.surge() ? " 🔥급증" : ""));
-            String basisText = basis.fallback()
-                    ? "쿠팡 30일 집계 기준"
-                    : String.format("7일 속도 %s / 30일 속도 %s", basis.speed7(), basis.speed30());
-            message.append(String.format("   현재 재고 %,d개 / 일평균 판매 %s개 (%s)\n",
-                    s.getCurrentQuantity(), s.getDailyAvgSales(), basisText));
-            message.append(String.format("   소진까지 약 %s일 (%s) → 제안 입고 수량 %,d개\n\n",
-                    s.getDaysUntilStockout(), s.getExpectedStockoutDate(), s.getSuggestedQuantity()));
+            String urgency = s.getDaysUntilStockout().compareTo(URGENT_DAYS) <= 0 ? "🔴" : "🟡";
+            String name = escapeMrkdwn(s.getProductName() != null ? s.getProductName() : "(상품명 미매핑)");
+            String title = urgency + " *" + name + "*" + (basis.surge() ? " 🔥급증" : "");
+
+            JSONArray fields = new JSONArray()
+                    .put(mrkdwn("입고 수량: `" + s.getSuggestedQuantity() + "개`"))
+                    .put(mrkdwn("소진까지: `" + formatDays(s.getDaysUntilStockout()) + "일`"))
+                    .put(mrkdwn("현재 재고: " + s.getCurrentQuantity() + "개"))
+                    .put(mrkdwn("최근 30일 판매: " + basis.sales30Sum() + "개"));
+            blocks.put(new JSONObject().put("type", "section").put("text", mrkdwn(title)).put("fields", fields));
+            blocks.put(contextBlock("옵션ID " + s.getVendorItemId()));
+            blocks.put(divider());
+            shown++;
         }
-        message.append(String.format("총 %d건 / 기준: 소진 %d일 이내 제안, %d일치 보충 (일평균 = 7일·30일 속도 중 빠른 쪽)",
-                computed.size(), restockProperties.getThresholdDays(), restockProperties.getTargetDays()));
-        return message.toString();
+        if (computed.size() > MAX_CARD_ITEMS) {
+            blocks.put(contextBlock("외 " + (computed.size() - MAX_CARD_ITEMS) + "건 — 드라이런 API로 전체 확인 가능"));
+        }
+        blocks.put(contextBlock("기준: 소진 " + restockProperties.getThresholdDays() + "일 이내 알림 · "
+                + restockProperties.getTargetDays() + "일치 보충"));
+        return blocks;
+    }
+
+    /** 푸시 알림 미리보기/블록 미지원 클라이언트용 요약 텍스트 */
+    private String buildFallbackText(List<Computed> computed) {
+        StringBuilder text = new StringBuilder("📦 쿠팡 입고 제안 " + computed.size() + "건");
+        for (Computed item : computed) {
+            CoupangRestockSuggestion s = item.saved();
+            text.append("\n· ").append(s.getProductName() != null ? s.getProductName() : "(상품명 미매핑)")
+                    .append(" — ").append(s.getSuggestedQuantity()).append("개 입고 (소진까지 ")
+                    .append(formatDays(s.getDaysUntilStockout())).append("일)");
+        }
+        return text.toString();
+    }
+
+    private static JSONObject mrkdwn(String text) {
+        return new JSONObject().put("type", "mrkdwn").put("text", text);
+    }
+
+    private static JSONObject contextBlock(String text) {
+        return new JSONObject().put("type", "context").put("elements", new JSONArray().put(mrkdwn(text)));
+    }
+
+    private static JSONObject divider() {
+        return new JSONObject().put("type", "divider");
+    }
+
+    /** 슬랙 mrkdwn 이스케이프 (상품명의 &, <, > 대응) */
+    private static String escapeMrkdwn(String text) {
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+    }
+
+    /** 2.0 → "2", 5.5 → "5.5" */
+    private static String formatDays(BigDecimal days) {
+        return days.stripTrailingZeros().toPlainString();
     }
 }

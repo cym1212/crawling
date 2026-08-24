@@ -23,7 +23,8 @@ public final class RestockCalculator {
 
     public record Result(BigDecimal dailyAvgSales, BigDecimal daysUntilStockout,
                          LocalDate expectedStockoutDate, int suggestedQuantity,
-                         BigDecimal speed7, BigDecimal speed30, boolean surge, boolean fallback) {
+                         BigDecimal speed7, BigDecimal speed30, boolean surge, boolean fallback,
+                         int sales30Sum) {
     }
 
     /**
@@ -41,6 +42,7 @@ public final class RestockCalculator {
         BigDecimal speed30;
         boolean surge = false;
         boolean fallback = false;
+        int sales30Sum;
 
         if (dailySales == null || dailySales.isEmpty()) {
             // 폴백: 일별 데이터 없음 → v1 방식 (30일 합계 ÷ 30)
@@ -51,6 +53,7 @@ public final class RestockCalculator {
                     .divide(BigDecimal.valueOf(30), 2, RoundingMode.HALF_UP);
             speed7 = speed30;
             fallback = true;
+            sales30Sum = apiSalesCountLast30Days;
         } else {
             LocalDate windowEnd = today.minusDays(1);
             int sum30 = sumRange(dailySales, today.minusDays(30), windowEnd);
@@ -60,6 +63,7 @@ public final class RestockCalculator {
             if (sum30 <= 0) {
                 return Optional.empty(); // 최근 30일 판매 없음
             }
+            sales30Sum = sum30;
 
             // 신상품 보정: 판매 시작 후 경과일이 창보다 짧으면 경과일로 나눔
             long daysSinceFirstSale = firstSaleDate == null ? 30
@@ -88,7 +92,7 @@ public final class RestockCalculator {
                 .setScale(0, RoundingMode.CEILING)
                 .intValue() - currentQuantity;
         return Optional.of(new Result(dailyAvg, daysUntilStockout, expectedStockoutDate,
-                Math.max(1, suggested), speed7, speed30, surge, fallback));
+                Math.max(1, suggested), speed7, speed30, surge, fallback, sales30Sum));
     }
 
     private static int sumRange(Map<LocalDate, Integer> dailySales, LocalDate from, LocalDate to) {
