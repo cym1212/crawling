@@ -34,21 +34,25 @@ public class CoupangSlackNotifier {
         return sendTo(webhookUrl, text, "쿠팡 알림");
     }
 
-    /** 판매자배송 신규 주문 알림 (별도 웹훅 키 — 미설정 시 발송 안 함) */
-    public boolean sendOrderAlert(String text) {
-        return sendTo(orderWebhookUrl, text, "판매자배송 주문 알림");
-    }
-
     /**
      * Block Kit 카드 발송 (부족 재고 알림용). fallbackText는 푸시 알림 미리보기/미지원 클라이언트용 요약.
      * @return 실제 발송했으면 true (웹훅 미설정 시 false)
      */
     public boolean sendCard(String fallbackText, JSONArray blocks) {
-        if (webhookUrl == null || webhookUrl.isBlank()) {
-            log.info("쿠팡 알림 웹훅 미설정 - 카드 발송 생략. 요약:\n{}", fallbackText);
+        return sendCardTo(webhookUrl, fallbackText, blocks, "쿠팡 알림");
+    }
+
+    /** 판매자배송 주문 다이제스트 카드 발송 (별도 웹훅 키 — 미설정 시 발송 안 함) */
+    public boolean sendOrderCard(String fallbackText, JSONArray blocks) {
+        return sendCardTo(orderWebhookUrl, fallbackText, blocks, "판매자배송 주문 알림");
+    }
+
+    private boolean sendCardTo(String url, String fallbackText, JSONArray blocks, String label) {
+        if (url == null || url.isBlank()) {
+            log.info("{} 웹훅 미설정 - 카드 발송 생략. 요약:\n{}", label, fallbackText);
             return false;
         }
-        post(webhookUrl, new JSONObject().put("text", fallbackText).put("blocks", blocks).toString());
+        post(url, new JSONObject().put("text", fallbackText).put("blocks", blocks).toString());
         return true;
     }
 

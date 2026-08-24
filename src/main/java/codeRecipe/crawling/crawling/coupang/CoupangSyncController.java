@@ -38,25 +38,26 @@ public class CoupangSyncController {
     private final CoupangInventorySyncService inventorySyncService;
     private final CoupangRestockService restockService;
     private final CoupangOrderSyncService orderSyncService;
-    private final CoupangMarketplaceOrderAlertService marketplaceOrderAlertService;
+    private final CoupangMarketplaceOrderService marketplaceOrderService;
     private final CoupangRestockProperties restockProperties;
     private final CoupangInternalAuth internalAuth;
 
-    @Operation(summary = "⑤ 판매자배송 신규 주문 확인",
-            description = "최근 24시간의 결제완료(ACCEPT) 판매자배송 주문을 조회해 아직 알림 안 보낸 신규 주문을 감지한다. "
-                    + "dryRun=true면 슬랙 발송·중복방지 기록 없이 감지 결과와 메시지 미리보기만 반환. "
-                    + "실행 시 신규 주문이 있으면 슬랙 발송(주문 알림 웹훅 설정 시) 후 중복방지 기록. "
-                    + "스케줄러가 10분 간격으로 자동 실행하는 작업과 동일.")
-    @PostMapping("/coupang/orders/marketplace-check")
-    public ResponseEntity<Object> marketplaceOrderCheck(
+    @Operation(summary = "⑤ 판매자배송 주문 수집 + 다이제스트",
+            description = "최근 24시간의 결제완료(ACCEPT) 판매자배송 주문을 수집해 저장하고(주문·상품·수취인), "
+                    + "아직 알림 안 된 주문을 다이제스트 카드로 슬랙 발송한다. 0건이면 발송하지 않는다. "
+                    + "dryRun=true면 수집은 수행하되 슬랙 발송·알림 처리 없이 미리보기만 반환. "
+                    + "스케줄러가 매일 09:00/12:00에 자동 실행하는 작업과 동일.")
+    @PostMapping("/coupang/orders/digest")
+    public ResponseEntity<Object> orderDigest(
             @Parameter(description = "내부 인증 토큰 (application-coupang.yml의 coupang.internal.token 값)")
             @RequestHeader(value = "X-Internal-Token", required = false) String token,
-            @Parameter(description = "true면 슬랙 발송·기록 없이 감지 결과만 미리보기")
+            @Parameter(description = "true면 슬랙 발송·알림 처리 없이 미리보기만 반환")
             @RequestParam(defaultValue = "false") boolean dryRun) {
         if (!internalAuth.isAuthorized(token)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "unauthorized"));
         }
-        return ResponseEntity.ok(marketplaceOrderAlertService.checkAndNotify(dryRun));
+        int collected = marketplaceOrderService.collectNewOrders();
+        return ResponseEntity.ok(marketplaceOrderService.sendDigest(dryRun, collected));
     }
 
     @Operation(summary = "① 상품명 매핑 동기화",

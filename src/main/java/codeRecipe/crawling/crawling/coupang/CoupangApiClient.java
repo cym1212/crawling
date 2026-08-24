@@ -9,6 +9,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
@@ -17,6 +18,7 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -33,8 +35,16 @@ public class CoupangApiClient {
     private static final long MIN_INTERVAL_MS = 250;
 
     private final CoupangApiProperties properties;
-    private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    // 공용 RestTemplate 빈은 PATCH를 지원하지 않아(JDK URLConnection) 쿠팡 전용으로 별도 구성
+    private final RestTemplate restTemplate = createRestTemplate();
+
+    private static RestTemplate createRestTemplate() {
+        JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory();
+        factory.setReadTimeout(Duration.ofSeconds(60));
+        return new RestTemplate(factory);
+    }
 
     // throttle()에서만 접근 (synchronized)
     private long lastRequestAt = 0L;
@@ -89,42 +99,62 @@ public class CoupangApiClient {
         return getWithRetry(path, "");
     }
 
+    /** 판매자배송 상품준비중 처리 (결제완료 → 상품준비중). body: {vendorId, shipmentBoxIds:[...]} */
+    public JsonNode patchOrdersheetAcknowledgement(String bodyJson) {
+        String path = "/v2/providers/openapi/apis/api/v4/vendors/" + properties.getVendorId()
+                + "/ordersheets/acknowledgement";
+        return requestWithRetry(HttpMethod.PATCH, path, "", bodyJson);
+    }
+
+    /** 판매자배송 송장 등록 (상품준비중 → 배송지시). body: {vendorId, orderSheetInvoiceApplyDtos:[...]} */
+    public JsonNode postOrderInvoices(String bodyJson) {
+        String path = "/v2/providers/openapi/apis/api/v4/vendors/" + properties.getVendorId() + "/orders/invoices";
+        return requestWithRetry(HttpMethod.POST, path, "", bodyJson);
+    }
+
     /** 스로틀 적용 + 429 시 60초 대기 후 1회 재시도 */
     public JsonNode getWithRetry(String path, String query) {
+        return requestWithRetry(HttpMethod.GET, path, query, null);
+    }
+
+    public JsonNode requestWithRetry(HttpMethod method, String path, String query, String bodyJson) {
         throttle();
         try {
-            return get(path, query);
+            return request(method, path, query, bodyJson);
         } catch (CoupangApiException e) {
             if (!e.isTooManyRequests()) {
                 throw e;
             }
-            log.warn("쿠팡 API 429 발생 - 60초 대기 후 1회 재시도 path={}", path);
+            log.warn("쿠팡 API 429 발생 - 60초 대기 후 1회 재시도 {} {}", method, path);
             sleep(60_000);
             throttle();
-            return get(path, query);
+            return request(method, path, query, bodyJson);
         }
     }
 
     /**
      * @param query URL 인코딩된 쿼리스트링 ('?' 제외). 서명 대상 문자열에 그대로 포함되므로
-     *              실제 요청 쿼리와 정확히 일치해야 한다.
+     *              실제 요청 쿼리와 정확히 일치해야 한다. (본문은 서명에 포함되지 않음)
      */
-    public JsonNode get(String path, String query) {
+    public JsonNode request(HttpMethod method, String path, String query, String bodyJson) {
         HttpHeaders headers = new HttpHeaders();
-        headers.set(HttpHeaders.AUTHORIZATION, generateAuthorization("GET", path, query));
+        headers.set(HttpHeaders.AUTHORIZATION, generateAuthorization(method.name(), path, query));
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        String url = properties.getBaseUrl() + path + (query.isEmpty() ? "" : "?" + query);
+        String url = properties.getBaseUrl() + path + (query == null || query.isEmpty() ? "" : "?" + query);
         try {
+            HttpEntity<String> entity = bodyJson == null
+                    ? new HttpEntity<>(headers)
+                    : new HttpEntity<>(bodyJson, headers);
             ResponseEntity<String> response = restTemplate.exchange(
-                    URI.create(url), HttpMethod.GET, new HttpEntity<>(headers), String.class);
+                    URI.create(url), method, entity, String.class);
             return objectMapper.readTree(response.getBody());
         } catch (HttpStatusCodeException e) {
-            log.error("쿠팡 API 호출 실패 status={} path={} body={}", e.getStatusCode(), path,
+            log.error("쿠팡 API 호출 실패 status={} {} {} body={}", e.getStatusCode(), method, path,
                     e.getResponseBodyAsString());
             throw new CoupangApiException("쿠팡 API 호출 실패: " + e.getStatusCode(), e.getStatusCode(), e);
         } catch (Exception e) {
-            log.error("쿠팡 API 응답 처리 실패 path={}", path, e);
+            log.error("쿠팡 API 응답 처리 실패 {} {}", method, path, e);
             throw new CoupangApiException("쿠팡 API 응답 처리 실패", null, e);
         }
     }
