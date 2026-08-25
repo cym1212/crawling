@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
 
 /**
  * 판매자배송(마켓플레이스) 주문 수집 + 다이제스트 슬랙 알림.
- * - 수집: 최근 24시간 결제완료(ACCEPT) 발주서를 조회해 신규 주문만 저장 (주문+상품+수취인)
+ * - 수집: 최근 23시간 결제완료(ACCEPT) 발주서를 조회해 신규 주문만 저장 (주문+상품+수취인)
  * - 다이제스트: 하루 2회(기본 09:00/12:00) 미알림 주문을 확정 템플릿의 Block Kit 카드로 발송
  * - 0건이면 발송하지 않음
  */
@@ -140,10 +140,15 @@ public class CoupangMarketplaceOrderService {
 
     // ── 수집 ─────────────────────────────────────────────────────────
 
-    /** 최근 24시간의 결제완료(ACCEPT) 주문 중 신규만 저장. @return 신규 저장 건수 */
+    /**
+     * 최근 23시간의 결제완료(ACCEPT) 주문 중 신규만 저장. @return 신규 저장 건수
+     * 창을 23시간으로 잡는 이유: 쿠팡 발주서 API는 조회 창이 24시간 "미만"이어야 해서
+     * 정확히 24시간이면 400(range should less than 0 day)이 난다. 다이제스트 간 최대 간격은
+     * 21시간(12:00→익일 09:00)이라 23시간이면 누락 없이 안전하다.
+     */
     public int collectNewOrders() {
         LocalDateTime now = LocalDateTime.now(SEOUL);
-        String from = now.minusHours(24).format(TIME_PARAM) + "%2B09:00";
+        String from = now.minusHours(23).format(TIME_PARAM) + "%2B09:00";
         String to = now.format(TIME_PARAM) + "%2B09:00";
 
         List<ParsedOrder> parsed = new ArrayList<>();

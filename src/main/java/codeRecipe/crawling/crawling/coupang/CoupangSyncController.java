@@ -43,7 +43,7 @@ public class CoupangSyncController {
     private final CoupangInternalAuth internalAuth;
 
     @Operation(summary = "⑤ 판매자배송 주문 수집 + 다이제스트",
-            description = "최근 24시간의 결제완료(ACCEPT) 판매자배송 주문을 수집해 저장하고(주문·상품·수취인), "
+            description = "최근 23시간의 결제완료(ACCEPT) 판매자배송 주문을 수집해 저장하고(주문·상품·수취인), "
                     + "아직 알림 안 된 주문을 다이제스트 카드로 슬랙 발송한다. 0건이면 발송하지 않는다. "
                     + "dryRun=true면 수집은 수행하되 슬랙 발송·알림 처리 없이 미리보기만 반환. "
                     + "스케줄러가 매일 09:00/12:00에 자동 실행하는 작업과 동일.")
