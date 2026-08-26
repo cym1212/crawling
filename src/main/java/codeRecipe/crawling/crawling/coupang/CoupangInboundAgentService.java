@@ -250,6 +250,14 @@ public class CoupangInboundAgentService {
         return cleaned.size();
     }
 
+    /** 에이전트 상태 알림 릴레이 (세션 만료, 문서 회수 실패 등) — 웹훅을 에이전트에 두지 않기 위한 통로 */
+    public void notifyFromAgent(String message) {
+        if (message == null || message.isBlank()) {
+            return;
+        }
+        slackNotifier.send("🤖 [입고 에이전트] " + message);
+    }
+
     private List<AgentItem> toAgentItems(Long planId) {
         return itemRepository.findByPlanId(planId).stream()
                 .map(item -> new AgentItem(item.getVendorItemId(), item.getProductName(), item.getQuantity()))

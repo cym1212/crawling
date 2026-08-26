@@ -124,6 +124,19 @@ public class CoupangInboundAgentController {
         }
     }
 
+    public record NotifyRequest(String message) { }
+
+    @PostMapping("/notify")
+    public ResponseEntity<Object> notify(
+            @RequestHeader(value = "X-Agent-Token", required = false) String token,
+            @RequestBody NotifyRequest request) {
+        if (!agentAuth.isAuthorized(token)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "unauthorized"));
+        }
+        agentService.notifyFromAgent(request.message());
+        return ResponseEntity.ok(Map.of("sent", true));
+    }
+
     @PostMapping("/addresses")
     public ResponseEntity<Object> syncAddresses(
             @RequestHeader(value = "X-Agent-Token", required = false) String token,
