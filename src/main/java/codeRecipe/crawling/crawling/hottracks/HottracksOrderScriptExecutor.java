@@ -49,6 +49,10 @@ public class HottracksOrderScriptExecutor {
     @Value("${app.hottracks-order-home-url:https://partner.hottracks.co.kr/mainFinder.do?method=listView}")
     private String homeUrl;
 
+    // 발주 원본 엑셀 보관 디렉터리. 빈 값이면 파이썬에 미전달 = 엑셀 스킵.
+    @Value("${hottracks.excel.storage-dir:}")
+    private String excelStorageDir;
+
     private final HottracksPurchaseOrderRepository orderRepository;
     private final HottracksPurchaseOrderItemRepository orderItemRepository;
 
@@ -67,9 +71,14 @@ public class HottracksOrderScriptExecutor {
             }
         }
 
-        ProcessBuilder pb = new ProcessBuilder(
+        List<String> cmd = new ArrayList<>(List.of(
                 pythonPath, tempScript.getAbsolutePath(),
-                loginUrl, homeUrl, username, password);
+                loginUrl, homeUrl, username, password));
+        if (excelStorageDir != null && !excelStorageDir.isBlank()) {
+            new File(excelStorageDir, "tmp").mkdirs();   // 없으면 생성
+            cmd.add(excelStorageDir);
+        }
+        ProcessBuilder pb = new ProcessBuilder(cmd);
         pb.redirectErrorStream(false);
         Process process = pb.start();
 
@@ -118,8 +127,20 @@ public class HottracksOrderScriptExecutor {
                 continue;
             }
 
-            if (orderRepository.existsByPlorRdpCodeAndPlorDateAndPlorNum(plorRdpCode, plorDate, plorNum)) {
-                log.info("이미 수집된 발주 건너뜀: {}/{}/{}", plorRdpCode, plorDate, plorNum);
+            String excelFile = text(od, "excelFile");   // null/빈 문자열이면 미저장
+
+            // 기수집 발주: 통째로 건너뛰되, 엑셀이 이번에 새로 저장됐고 아직 경로가 없으면 소급 기록
+            var existing = orderRepository.findByPlorRdpCodeAndPlorDateAndPlorNum(plorRdpCode, plorDate, plorNum);
+            if (existing.isPresent()) {
+                HottracksPurchaseOrder ex = existing.get();
+                if ((ex.getExcelPath() == null || ex.getExcelPath().isBlank()) && !excelFile.isEmpty()) {
+                    ex.setExcelPath(excelFile);
+                    ex.setExcelSavedAt(now);
+                    orderRepository.save(ex);
+                    log.info("교보 발주 엑셀 소급 저장: {}/{}/{}", plorRdpCode, plorDate, plorNum);
+                } else {
+                    log.info("이미 수집된 발주 건너뜀: {}/{}/{}", plorRdpCode, plorDate, plorNum);
+                }
                 continue;
             }
 
@@ -137,6 +158,8 @@ public class HottracksOrderScriptExecutor {
                     .status("NEW")
                     .detectedAt(now)
                     .collectedAt(now)
+                    .excelPath(excelFile.isEmpty() ? null : excelFile)
+                    .excelSavedAt(excelFile.isEmpty() ? null : now)
                     .build();
             order = orderRepository.save(order);
 

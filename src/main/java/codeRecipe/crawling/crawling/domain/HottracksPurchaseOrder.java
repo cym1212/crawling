@@ -92,4 +92,20 @@ public class HottracksPurchaseOrder {
 
     @Column(name = "collected_at", nullable = false)
     private LocalDateTime collectedAt;   // 마지막 수집 시각
+
+    // ===== 발주 원본 엑셀([엑셀출력]) 보관 =====
+    @Column(name = "excel_path", length = 500)
+    private String excelPath;            // 발주 원본 엑셀 저장 경로 (null = 미저장)
+
+    @Column(name = "excel_saved_at")
+    private LocalDateTime excelSavedAt;  // 엑셀 저장 시각
+
+    /** 기수집 발주에 엑셀을 소급 저장할 때 사용 (@Builder toBuilder 대신 부분 갱신용) */
+    public void setExcelPath(String excelPath) {
+        this.excelPath = excelPath;
+    }
+
+    public void setExcelSavedAt(LocalDateTime excelSavedAt) {
+        this.excelSavedAt = excelSavedAt;
+    }
 }

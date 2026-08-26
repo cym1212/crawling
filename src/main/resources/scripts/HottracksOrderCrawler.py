@@ -12,7 +12,7 @@ stdout: [{"plorRdpCode","plorDate","plorNum","plorRdpName","vndrCode",
            "items":[{"barcode","cmdtId","productName","plorQntt","saleUnpr"}]}]
 로그는 전부 stderr.
 """
-import sys, json, time, re
+import sys, json, time, re, os, glob, shutil
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -31,7 +31,7 @@ def err(msg):
     print(f"ERROR: {msg}", file=sys.stderr)
 
 
-def make_driver():
+def make_driver(download_dir=None):
     options = webdriver.ChromeOptions()
     options.add_argument('--headless')
     options.add_argument('--no-sandbox')
@@ -40,14 +40,31 @@ def make_driver():
     options.add_argument('--disable-gpu')
     options.add_argument('--disable-extensions')
     options.add_argument('--window-size=1400,1000')
+    if download_dir:
+        # headless Chrome은 다운로드 경로를 명시해야 파일이 저장된다.
+        os.makedirs(download_dir, exist_ok=True)
+        prefs = {
+            "download.default_directory": download_dir,   # storage_dir/tmp
+            "download.prompt_for_download": False,
+            "download.directory_upgrade": True,
+            "safebrowsing.enabled": True,
+        }
+        options.add_experimental_option("prefs", prefs)
     try:
         service = Service(ChromeDriverManager().install())
     except Exception as e:
         err(f"ChromeDriverManager 오류: {e}")
-        import os
         p = os.path.join(os.getcwd(), "chromedriver")
         service = Service(p) if os.path.exists(p) else Service(ChromeDriverManager().install())
-    return webdriver.Chrome(service=service, options=options)
+    driver = webdriver.Chrome(service=service, options=options)
+    if download_dir:
+        # headless에서 다운로드 허용 (일부 크롬 버전은 prefs만으로 부족)
+        try:
+            driver.execute_cdp_cmd("Page.setDownloadBehavior",
+                                   {"behavior": "allow", "downloadPath": download_dir})
+        except Exception as e:
+            err(f"setDownloadBehavior 실패(무시): {e}")
+    return driver
 
 
 def accept_alerts(driver, tries=3, wait=2):
@@ -97,6 +114,8 @@ def parse_grid_orders(html):
                 row["plorRdpName"] = val
             elif key.endswith("_vndrCode"):
                 row["vndrCode"] = val
+            elif key.endswith("_vndrName"):
+                row["vndrName"] = val
             elif key.endswith("_plorPrgsCdtnCode"):
                 row["plorPrgsCdtnCode"] = val
             elif key.endswith("_plorPrgsCdtnName"):
@@ -175,13 +194,85 @@ def fetch_delivery_page(driver, home_url, rdp, date, num):
     return html
 
 
+def _wait_download(download_dir, timeout=30):
+    """download_dir에 새 .xlsx/.xls 생성 & .crdownload 소멸 폴링. 완료 파일 경로 반환(없으면 None)."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        # 아직 받는 중이면 대기
+        if glob.glob(os.path.join(download_dir, "*.crdownload")):
+            time.sleep(0.5)
+            continue
+        finished = glob.glob(os.path.join(download_dir, "*.xlsx")) + glob.glob(os.path.join(download_dir, "*.xls"))
+        if finished:
+            # 가장 최근 파일
+            return max(finished, key=os.path.getmtime)
+        time.sleep(0.5)
+    return None
+
+
+def download_order_excel(driver, home_url, od, storage_dir):
+    """
+    발주 [엑셀출력] 원본 엑셀을 내려받아 {storage_dir}/{rdp}_{date}_{num}.xlsx 로 보관.
+    반환: 최종 절대경로(문자열), 실패 시 None.
+
+    ⚠️ [엑셀출력] 트리거 셀렉터는 실사이트 확인 필요(의뢰서 §6).
+       gridPlor 각 행 버튼: fnPrintByBrowserType(vndrCode, vndrName, rdpCode, plorDate, plorNum,
+                                               rdpName, prgsCode, decrId)  ← 세션 조사에서 확인한 시그니처.
+       DOM 클릭보다 이 onclick JS 함수를 execute_script로 직접 호출하는 방식이 안정적
+       (fetch_delivery_page의 fnOpen2 재현과 동일 요령). 실화면에서 함수명/인자순서가 다르면
+       아래 호출부만 맞추면 된다. 버튼 위치(홈 상단/납품확인 탭)도 실화면에서 확인해 주석 갱신할 것.
+    """
+    rdp, date, num = od["plorRdpCode"], od["plorDate"], od["plorNum"]
+    final_path = os.path.join(storage_dir, f"{rdp}_{date}_{num}.xlsx")
+    # 이미 있으면 스킵 (파일 시스템이 상태 저장소 — 매시 중복 다운로드 방지)
+    if os.path.exists(final_path):
+        log(f"엑셀 이미 존재, 스킵: {final_path}")
+        return os.path.abspath(final_path)
+
+    download_dir = os.path.join(storage_dir, "tmp")
+    os.makedirs(download_dir, exist_ok=True)
+    # tmp 비우기(이전 잔여 파일이 최근 파일로 잡히지 않도록)
+    for f in glob.glob(os.path.join(download_dir, "*")):
+        try:
+            os.remove(f)
+        except OSError:
+            pass
+
+    driver.get(home_url)
+    accept_alerts(driver)
+    # [엑셀출력] 함수 직접 호출 — 발주 헤더 값으로 인자 구성.
+    # vndrName/rdpName은 리포트 표시용이라 파일 내용에 영향 적음(빈 값 허용). 실패 시 예외 → 상위에서 catch.
+    driver.execute_script(
+        "if (typeof fnPrintByBrowserType === 'function') {"
+        "  fnPrintByBrowserType(arguments[0], arguments[1], arguments[2], arguments[3],"
+        "                       arguments[4], arguments[5], arguments[6], arguments[7]);"
+        "} else { throw 'fnPrintByBrowserType 미정의 — 셀렉터 확인 필요(의뢰서 §6)'; }",
+        od.get("vndrCode", ""), od.get("vndrName", ""), rdp, date, num,
+        od.get("plorRdpName", ""), od.get("plorPrgsCdtnCode", ""), od.get("plorDecrId", ""))
+    time.sleep(2)
+    accept_alerts(driver)  # 엑셀출력 확인 alert 있으면 수락
+
+    got = _wait_download(download_dir, timeout=30)
+    if not got:
+        err(f"엑셀 다운로드 대기 시간 초과: {rdp}/{date}/{num}")
+        return None
+    # 실제 확장자 유지(.xls면 .xls로) — 우선 규칙대로 .xlsx 경로에 이동하되 실제 확장자 다르면 맞춤
+    ext = os.path.splitext(got)[1].lower()
+    if ext == ".xls":
+        final_path = os.path.join(storage_dir, f"{rdp}_{date}_{num}.xls")
+    shutil.move(got, final_path)
+    log(f"엑셀 저장: {final_path}")
+    return os.path.abspath(final_path)
+
+
 def main():
-    if len(sys.argv) != 5:
-        print(json.dumps({"error": "usage: <login_url> <home_url> <username> <password>"}))
+    if len(sys.argv) < 5:
+        print(json.dumps({"error": "usage: <login_url> <home_url> <username> <password> [storage_dir]"}))
         sys.exit(1)
     login_url, home_url, username, password = sys.argv[1:5]
+    storage_dir = sys.argv[5] if len(sys.argv) >= 6 and sys.argv[5].strip() else None
 
-    driver = make_driver()
+    driver = make_driver(download_dir=os.path.join(storage_dir, "tmp") if storage_dir else None)
     try:
         login(driver, login_url, username, password)
         driver.get(home_url)
@@ -200,6 +291,15 @@ def main():
             except Exception as e:
                 err(f"발주 {od.get('plorNum')} 상세 파싱 실패: {e}")
                 od["items"] = []
+
+            # 원본 엑셀 다운로드(부가 기능) — 실패해도 발주 수집은 계속
+            od["excelFile"] = None
+            if storage_dir:
+                try:
+                    od["excelFile"] = download_order_excel(driver, home_url, od, storage_dir)
+                except Exception as e:
+                    err(f"발주 {od.get('plorNum')} 엑셀 다운로드 실패: {e}")
+
             result.append(od)
 
         print(json.dumps(result, ensure_ascii=False))
