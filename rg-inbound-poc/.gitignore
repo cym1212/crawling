@@ -1,0 +1,4 @@
+node_modules/
+wing-profile/
+dump/
+.env
