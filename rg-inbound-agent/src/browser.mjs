@@ -75,3 +75,27 @@ export async function clickSafe(locator, description) {
     await locator.evaluate((el) => el.click());
   }
 }
+
+/** 버튼이 활성화될 때까지 대기 (기본 20초) — 미활성이면 false */
+export async function waitForEnabled(page, locator, seconds = 20) {
+  for (let i = 0; i < seconds; i++) {
+    if ((await locator.isVisible().catch(() => false)) && !(await locator.isDisabled().catch(() => true))) {
+      return true;
+    }
+    await page.waitForTimeout(1_000);
+  }
+  return false;
+}
+
+/** 상품 체크박스를 확실히 체크 (attached 대기 + 재시도 + 검증) — PoC 검증 로직 */
+export async function ensureProductChecked(page, checkbox, description) {
+  await checkbox.waitFor({ state: 'attached', timeout: 30_000 });
+  for (let attempt = 0; attempt < 4 && !(await checkbox.isChecked().catch(() => false)); attempt++) {
+    await removeCoachMarks(page);
+    await clickSafe(checkbox, description);
+    await page.waitForTimeout(1_500);
+  }
+  if (!(await checkbox.isChecked().catch(() => false))) {
+    throw new Error(description + ' 실패 — 체크박스가 체크되지 않습니다');
+  }
+}

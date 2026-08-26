@@ -1,4 +1,4 @@
-import { openNewInbound, removeCoachMarks, clickSafe, log } from './browser.mjs';
+import { openNewInbound, removeCoachMarks, clickSafe, log, waitForEnabled, ensureProductChecked } from './browser.mjs';
 
 /**
  * SYNC_ADDRESSES 작업: 마법사 3단계 회송지 드로어에서 등록 주소 목록을 읽어 서버에 동기화.
@@ -9,15 +9,12 @@ export async function runSyncAddressesJob(page, api) {
 
   // 최소 경로로 3단계까지: 첫 상품 체크 → 수량 1 → 박스 1개 → 다음
   const checkbox = page.locator('input[type=checkbox][id^=checkbox-]:not(#checkbox-all)').first();
-  if ((await checkbox.count()) === 0) {
-    throw new Error('주소 동기화 실패: 상품 목록이 비어 있습니다');
+  await ensureProductChecked(page, checkbox, '상품 체크(주소 동기화용)');
+  const next1 = page.locator('button:visible', { hasText: '다음' }).last();
+  if (!(await waitForEnabled(page, next1))) {
+    throw new Error('1단계 다음 버튼이 활성화되지 않았습니다');
   }
-  for (let attempt = 0; attempt < 3 && !(await checkbox.isChecked().catch(() => false)); attempt++) {
-    await removeCoachMarks(page);
-    await clickSafe(checkbox, '상품 체크(주소 동기화용)');
-    await page.waitForTimeout(1_200);
-  }
-  await page.locator('button', { hasText: '다음' }).last().click();
+  await next1.click();
   await page.waitForTimeout(6_000);
 
   const domestic = page.locator('#shipping-classification-domestic');
@@ -37,12 +34,16 @@ export async function runSyncAddressesJob(page, api) {
       .locator('label, input[type=radio]').filter({ hasText: /^1개$/ }).first();
   await boxRadio.click().catch(async () => boxRadio.evaluate((el) => el.click()));
   await page.waitForTimeout(1_500);
-  const cardNext = page.locator('button', { hasText: '다음' }).nth(1);
-  if ((await cardNext.isVisible().catch(() => false)) && !(await cardNext.isDisabled().catch(() => true))) {
-    await cardNext.click().catch(() => {});
+  const nextButtons = page.locator('button:visible', { hasText: '다음' });
+  if ((await nextButtons.count()) > 1 && !(await nextButtons.first().isDisabled().catch(() => true))) {
+    await nextButtons.first().click().catch(() => {}); // 입고 카드 내부 다음 (박스 적용)
     await page.waitForTimeout(4_000);
   }
-  await page.locator('button', { hasText: '다음' }).last().click();
+  const footerNext = page.locator('button:visible', { hasText: '다음' }).last();
+  if (!(await waitForEnabled(page, footerNext))) {
+    throw new Error('2단계 다음 버튼이 활성화되지 않았습니다');
+  }
+  await footerNext.click();
   await page.waitForTimeout(9_000);
 
   // 회송지 드로어 열기 → 주소 행 텍스트 수집
@@ -58,12 +59,11 @@ export async function runSyncAddressesJob(page, api) {
         .find((el) => (el.innerText || '').includes('회송지 선택') && (el.offsetWidth || el.offsetHeight)
             && el.querySelectorAll('*').length < 400);
     if (!drawer) return [];
-    // 주소 행 후보: 시/도 명칭을 포함한 짧은 텍스트 블록
+    // 주소 행 후보: 반드시 시/도 명칭으로 시작하는 짧은 텍스트 블록만 (안내 문구 배제)
     const texts = [...drawer.querySelectorAll('label, li, [class*=item], [class*=row], div')]
         .map((el) => (el.innerText || '').trim().replace(/\s+/g, ' '))
         .filter((text) => text.length >= 8 && text.length <= 120
-            && /(특별시|광역시|도 |시 |군 |구 )/.test(text)
-            && !text.includes('회송지 선택') && !text.includes('새 주소'));
+            && /^(서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|충청|전북|전남|전라|경북|경남|경상|제주)/.test(text));
     return [...new Set(texts)];
   });
 

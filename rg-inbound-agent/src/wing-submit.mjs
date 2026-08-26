@@ -1,5 +1,5 @@
 import path from 'path';
-import { openNewInbound, removeCoachMarks, clickSafe, log, LIST_URL } from './browser.mjs';
+import { openNewInbound, removeCoachMarks, clickSafe, log, LIST_URL, waitForEnabled, ensureProductChecked } from './browser.mjs';
 
 /**
  * SUBMIT 작업: WING 입고생성 완주 (PoC poc-final2.mjs에서 실증된 경로 이식 + 다중 상품/수량 확장).
@@ -17,7 +17,11 @@ export async function runSubmitJob(page, api, config, job) {
   for (const item of items) {
     await searchAndCheckOption(page, item.vendorItemId);
   }
-  await page.locator('button', { hasText: '다음' }).last().click();
+  const step1Next = page.locator('button:visible', { hasText: '다음' }).last();
+  if (!(await waitForEnabled(page, step1Next))) {
+    throw new Error('1단계 다음 버튼이 활성화되지 않았습니다 (상품 선택 확인 필요)');
+  }
+  await step1Next.click();
   await page.waitForTimeout(6_000);
   log('1단계 통과 — 상품', items.length, '건');
 
@@ -30,12 +34,12 @@ export async function runSubmitJob(page, api, config, job) {
   await selectBoxCount(page, boxCount);
 
   // 입고 카드 내부 "다음" (박스 적용) → 푸터 "다음"
-  const cardNext = page.locator('button', { hasText: '다음' }).nth(1);
-  if ((await cardNext.isVisible().catch(() => false)) && !(await cardNext.isDisabled().catch(() => true))) {
-    await cardNext.click().catch(() => {});
+  const nextButtons = page.locator('button:visible', { hasText: '다음' });
+  if ((await nextButtons.count()) > 1 && !(await nextButtons.first().isDisabled().catch(() => true))) {
+    await nextButtons.first().click().catch(() => {}); // 입고 카드 내부 다음 (박스 적용)
     await page.waitForTimeout(4_000);
   }
-  const footerNext = page.locator('button', { hasText: '다음' }).last();
+  const footerNext = page.locator('button:visible', { hasText: '다음' }).last();
   if (await footerNext.isDisabled().catch(() => true)) {
     throw new Error('2단계 완성 실패 — 다음 버튼 비활성 (수량/박스 입력 확인 필요)');
   }
@@ -47,7 +51,7 @@ export async function runSubmitJob(page, api, config, job) {
   await selectReturnAddress(page, returnAddress);
   await checkAgreements(page);
 
-  const submitBtn = page.locator('button', { hasText: '입고 제출하기' }).last();
+  const submitBtn = page.locator('button:visible', { hasText: '입고 제출하기' }).last();
   if (await submitBtn.isDisabled().catch(() => true)) {
     throw new Error('제출 버튼 비활성 — 필수 입력 미충족 (회송지/동의 확인 필요)');
   }
@@ -94,13 +98,7 @@ async function searchAndCheckOption(page, vendorItemId) {
   if ((await checkbox.count()) === 0) {
     throw new Error(`상품 검색 결과 없음: 옵션 ID ${vendorItemId}`);
   }
-  for (let attempt = 0; attempt < 3 && !(await checkbox.isChecked().catch(() => false)); attempt++) {
-    await clickSafe(checkbox, `상품 체크(${vendorItemId})`);
-    await page.waitForTimeout(1_200);
-  }
-  if (!(await checkbox.isChecked().catch(() => false))) {
-    throw new Error(`상품 체크 실패: 옵션 ID ${vendorItemId}`);
-  }
+  await ensureProductChecked(page, checkbox, `상품 체크(${vendorItemId})`);
 }
 
 /**
