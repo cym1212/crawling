@@ -24,6 +24,7 @@ public class CoupangSchedulingService {
     private final CoupangRestockService restockService;
     private final CoupangOrderSyncService orderSyncService;
     private final CoupangMarketplaceOrderService marketplaceOrderService;
+    private final CoupangInboundTrackingService inboundTrackingService;
     private final CoupangSlackNotifier coupangSlackNotifier;
 
     /** 판매자배송 주문 수집 + 다이제스트 발송 (기본: 매일 09:00, 12:00) */
@@ -57,6 +58,12 @@ public class CoupangSchedulingService {
     @Scheduled(cron = "${coupang.schedule.restock-cron:0 0 7 * * *}", zone = "Asia/Seoul")
     public void runRestock() {
         runSafely("쿠팡 재입고 제안", restockService::generateAndNotify);
+    }
+
+    /** 로켓그로스 입고 반영 추적 (기본: 매일 07:40 — 판매 수집 05:30·재고 매시 동기화 이후) */
+    @Scheduled(cron = "${coupang.inbound.tracking-cron:0 40 7 * * *}", zone = "Asia/Seoul")
+    public void runInboundTracking() {
+        runSafely("로켓그로스 입고 반영 추적", inboundTrackingService::trackReceipts);
     }
 
     private void runSafely(String jobName, Runnable job) {
