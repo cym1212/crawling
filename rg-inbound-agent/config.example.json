@@ -1,0 +1,8 @@
+{
+  "serverUrl": "http://127.0.0.1:8081",
+  "agentToken": "crawling application-coupang.yml의 coupang.agent.token 값",
+  "pollIntervalSec": 600,
+  "profileDir": "./wing-profile",
+  "downloadDir": "./downloads",
+  "loginWaitMinutes": 30
+}

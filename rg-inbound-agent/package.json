@@ -1,0 +1,15 @@
+{
+  "name": "rg-inbound-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "쿠팡 WING 로켓그로스 입고 RPA 에이전트 (담당자 PC 상주)",
+  "type": "module",
+  "main": "src/index.mjs",
+  "scripts": {
+    "start": "node src/index.mjs",
+    "once": "node src/index.mjs --once"
+  },
+  "dependencies": {
+    "playwright": "^1.49.0"
+  }
+}
