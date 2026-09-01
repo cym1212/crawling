@@ -13,7 +13,6 @@ from selenium.webdriver.common.keys import Keys
 import sys
 import requests
 from datetime import datetime
-from pyvirtualdisplay import Display
 import time
 import traceback
 
