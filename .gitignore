@@ -47,4 +47,5 @@ application-yeongpoong.yml
 
 .DS_Store
 application-coupang.yml
+application-internal.yml
 __pycache__/

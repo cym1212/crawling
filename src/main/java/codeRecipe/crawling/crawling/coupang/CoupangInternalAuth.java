@@ -6,11 +6,13 @@ import org.springframework.stereotype.Component;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 
-/** 내부 API / 수동 트리거용 X-Internal-Token 검증. 토큰 미설정 시 항상 거부(fail-closed). */
+/** 내부 API / 수동 트리거용 X-Internal-Token 검증. 토큰 미설정 시 항상 거부(fail-closed).
+ *  공통 토큰 app.internal.token 사용(30-we는 서비스 구분 없이 단일 토큰 사용). */
 @Component
 public class CoupangInternalAuth {
 
-    @Value("${coupang.internal.token:}")
+    // 공통 키 우선, 미설정 시 구(舊) 서비스별 키(coupang.internal.token) fallback (배포 과도기 안전).
+    @Value("${app.internal.token:${coupang.internal.token:}}")
     private String internalToken;
 
     public boolean isAuthorized(String token) {

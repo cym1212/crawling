@@ -4,6 +4,7 @@ spring:
     time-zone: Asia/Seoul
   config:
     import:
+      - classpath:application-internal.yml
       - classpath:application-database.yml
       - classpath:application-hottracks.yml
       - classpath:application-libro.yml

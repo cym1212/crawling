@@ -47,7 +47,7 @@ public class CoupangInternalController {
                     + "쿠팡 장애/키 미활성화 502 {\"error\":\"coupang_api_error\"}.")
     @GetMapping("/inventory")
     public ResponseEntity<Object> inventory(
-            @Parameter(description = "내부 인증 토큰 (application-coupang.yml의 coupang.internal.token 값)")
+            @Parameter(description = "내부 인증 토큰 (공통 app.internal.token 값(application-internal.yml))")
             @RequestHeader(value = "X-Internal-Token", required = false) String token) {
         if (!internalAuth.isAuthorized(token)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "unauthorized"));
@@ -71,7 +71,7 @@ public class CoupangInternalController {
                     + "400 bad_request / 502 coupang_api_error.")
     @PostMapping("/orders/{orderId}/ship")
     public ResponseEntity<Object> ship(
-            @Parameter(description = "내부 인증 토큰 (application-coupang.yml의 coupang.internal.token 값)")
+            @Parameter(description = "내부 인증 토큰 (공통 app.internal.token 값(application-internal.yml))")
             @RequestHeader(value = "X-Internal-Token", required = false) String token,
             @Parameter(description = "쿠팡 주문번호") @PathVariable long orderId,
             @RequestBody ShipRequest request) {

@@ -49,7 +49,7 @@ public class CoupangSyncController {
                     + "스케줄러가 매일 09:00/12:00에 자동 실행하는 작업과 동일.")
     @PostMapping("/coupang/orders/digest")
     public ResponseEntity<Object> orderDigest(
-            @Parameter(description = "내부 인증 토큰 (application-coupang.yml의 coupang.internal.token 값)")
+            @Parameter(description = "내부 인증 토큰 (공통 app.internal.token 값(application-internal.yml))")
             @RequestHeader(value = "X-Internal-Token", required = false) String token,
             @Parameter(description = "true면 슬랙 발송·알림 처리 없이 미리보기만 반환")
             @RequestParam(defaultValue = "false") boolean dryRun) {
@@ -69,7 +69,7 @@ public class CoupangSyncController {
                     + "응답: 이번에 신규/갱신된 매핑 상세 목록. forceRefresh=true면 전체 상품을 다시 조회한다.")
     @PostMapping("/coupang/sync/products")
     public ResponseEntity<Object> syncProducts(
-            @Parameter(description = "내부 인증 토큰 (application-coupang.yml의 coupang.internal.token 값)")
+            @Parameter(description = "내부 인증 토큰 (공통 app.internal.token 값(application-internal.yml))")
             @RequestHeader(value = "X-Internal-Token", required = false) String token,
             @Parameter(description = "true면 이미 매핑된 상품도 상세 조회를 다시 수행")
             @RequestParam(defaultValue = "false") boolean forceRefresh) {
@@ -91,7 +91,7 @@ public class CoupangSyncController {
                     + "30-we.com 재고 현황 화면이 이 테이블을 읽는다. 응답: 저장된 재고 스냅샷 전체 목록.")
     @PostMapping("/coupang/sync/inventory")
     public ResponseEntity<Object> syncInventory(
-            @Parameter(description = "내부 인증 토큰 (application-coupang.yml의 coupang.internal.token 값)")
+            @Parameter(description = "내부 인증 토큰 (공통 app.internal.token 값(application-internal.yml))")
             @RequestHeader(value = "X-Internal-Token", required = false) String token) {
         if (!internalAuth.isAuthorized(token)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "unauthorized"));
@@ -114,7 +114,7 @@ public class CoupangSyncController {
                     + "응답: 저장된 일별 집계 행 목록. 주문에서 발견된 미매핑 상품명은 coupang_product에도 보강된다.")
     @PostMapping("/coupang/sync/orders")
     public ResponseEntity<Object> syncOrders(
-            @Parameter(description = "내부 인증 토큰 (application-coupang.yml의 coupang.internal.token 값)")
+            @Parameter(description = "내부 인증 토큰 (공통 app.internal.token 값(application-internal.yml))")
             @RequestHeader(value = "X-Internal-Token", required = false) String token,
             @Parameter(description = "수집 시작일 (yyyy-MM-dd, 생략 시 어제)")
             @RequestParam(required = false) String startDate,
@@ -143,7 +143,7 @@ public class CoupangSyncController {
                     + "기준을 바꿔 실험할 수 있다.")
     @PostMapping("/coupang/restock")
     public ResponseEntity<Object> restock(
-            @Parameter(description = "내부 인증 토큰 (application-coupang.yml의 coupang.internal.token 값)")
+            @Parameter(description = "내부 인증 토큰 (공통 app.internal.token 값(application-internal.yml))")
             @RequestHeader(value = "X-Internal-Token", required = false) String token,
             @Parameter(description = "true면 저장/슬랙 없이 계산 결과만 반환 (테스트용)")
             @RequestParam(defaultValue = "false") boolean dryRun,
