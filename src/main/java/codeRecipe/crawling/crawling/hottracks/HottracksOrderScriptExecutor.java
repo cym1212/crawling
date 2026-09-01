@@ -121,14 +121,17 @@ public class HottracksOrderScriptExecutor {
             log.error("교보 발주 크롤링 실패: {}", msg);
             throw new RuntimeException("교보 발주 크롤링 실패: " + msg);
         }
-        if (!root.isArray()) {
-            throw new RuntimeException("교보 발주 응답 형식 오류(배열 아님)");
+        // 응답 형식: {"orders":[...], "deliveredKeys":[...]} (이중 크롤링).
+        // 하위호환: 과거 배열 형식이면 그대로 orders로 취급.
+        JsonNode ordersNode = root.isArray() ? root : root.get("orders");
+        if (ordersNode == null || !ordersNode.isArray()) {
+            throw new RuntimeException("교보 발주 응답 형식 오류(orders 배열 없음)");
         }
 
         LocalDateTime now = LocalDateTime.now(SEOUL);
         int saved = 0;
 
-        for (JsonNode od : root) {
+        for (JsonNode od : ordersNode) {
             String plorRdpCode = text(od, "plorRdpCode");
             String plorDate = text(od, "plorDate");
             String plorNum = text(od, "plorNum");
@@ -196,6 +199,47 @@ public class HottracksOrderScriptExecutor {
             saved++;
             log.info("교보 발주 저장: {}/{}/{} 상품 {}개", plorRdpCode, plorDate, plorNum, items.size());
         }
+
+        // ── 납품확인(503) 목록으로 "사람이 교보에서 직접 납품확인한 발주" 감지 ──
+        // 우리 봇 경유(DELIVERING/DELIVERED/DELIVERED_TMP/FAILED)가 아닌데 503에 나타난 발주 =
+        // 사람이 시스템 밖에서 직접 처리한 것 → delivered_at 소급 기록해 30-we 화면에서 납품완료로 넘긴다.
+        JsonNode deliveredKeys = root.get("deliveredKeys");
+        int syncedManual = 0;
+        if (deliveredKeys != null && deliveredKeys.isArray()) {
+            for (JsonNode dk : deliveredKeys) {
+                String rdp = text(dk, "plorRdpCode");
+                String date = text(dk, "plorDate");
+                String num = text(dk, "plorNum");
+                if (rdp.isEmpty() || date.isEmpty() || num.isEmpty()) {
+                    continue;
+                }
+                var opt = orderRepository.findByPlorRdpCodeAndPlorDateAndPlorNum(rdp, date, num);
+                if (opt.isEmpty()) {
+                    // 503에만 있고 우리가 발주확정 때 수집 못 한 발주(과거분 등)는 스킵 — 발주 내역이 없어 명세서 기반 반영 불가.
+                    continue;
+                }
+                HottracksPurchaseOrder ex = opt.get();
+                if (ex.getDeliveredAt() != null) {
+                    continue;  // 이미 납품 처리됨(봇 경유 포함)
+                }
+                // 우리 봇이 처리 중/완료/실패 상태면 봇 흐름이 관리하므로 건드리지 않는다.
+                String st = ex.getStatus();
+                if ("DELIVERING".equals(st) || "DELIVERED".equals(st) || "DELIVERED_TMP".equals(st) || "FAILED".equals(st)) {
+                    continue;
+                }
+                orderRepository.save(ex.toBuilder()
+                        .status("DELIVERED")
+                        .deliveryMode("MANUAL")   // 사람이 교보에서 직접 처리
+                        .deliveredAt(now)
+                        .build());
+                syncedManual++;
+                log.info("교보 발주 사람 직접 납품확인 감지 → delivered 기록: {}/{}/{}", rdp, date, num);
+            }
+        }
+        if (syncedManual > 0) {
+            log.info("교보 사람 직접처리 발주 {}건 delivered 소급 반영", syncedManual);
+        }
+
         return saved;
     }
 

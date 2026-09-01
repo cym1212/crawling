@@ -7,9 +7,13 @@
 읽기 전용: 어떤 상태변경(발주확정/납품확인) 버튼도 클릭하지 않는다.
 
 사용법: python HottracksOrderCrawler.py <login_url> <home_url> <username> <password>
-stdout: [{"plorRdpCode","plorDate","plorNum","plorRdpName","vndrCode",
-           "plorPrgsCdtnCode","plorPrgsCdtnName","sumPlorQntt","plorDecrId",
-           "items":[{"barcode","cmdtId","productName","plorQntt","saleUnpr"}]}]
+이중 크롤링: 발주확정(502) 목록은 신규 발주 수집, 납품확인(503) 목록은 발주키만 수집한다.
+502에서 사라지고 503에 나타난 발주 = 사람이 교보에서 직접 납품확인한 것 → Java가 delivered_at 소급 기록.
+
+stdout: {"orders":[{"plorRdpCode","plorDate","plorNum","plorRdpName","vndrCode",
+                    "plorPrgsCdtnCode","plorPrgsCdtnName","sumPlorQntt","plorDecrId","excelUrl",
+                    "items":[{"barcode","cmdtId","productName","plorQntt","saleUnpr"}]}],
+         "deliveredKeys":[{"plorRdpCode","plorDate","plorNum","plorRdpName"}]}
 로그는 전부 stderr.
 """
 import sys, json, time, re, os, glob, mimetypes, uuid
@@ -195,6 +199,50 @@ def fetch_delivery_page(driver, home_url, rdp, date, num):
     return html
 
 
+def fetch_grid_by_status(driver, home_url, status_code):
+    """
+    홈 검색 폼(searchForm)의 진행상태(srchPlorPrgsCdtnCode)를 status_code로 세팅하고
+    '조회' 버튼을 눌러 gridPlor를 해당 상태 목록으로 갱신한 뒤 파싱해 반환.
+
+    실측(2026-09-01): 진행상태 코드 502=발주확정, 503=납품확인, 504,505,506=검수확정, 555=취소.
+    조회 버튼은 alt='조회'인 이미지(jQuery 바인딩). 날짜 범위(srchStrtPlorDate/EndPlorDate)는
+    기존 값을 유지하되, 비어 있으면 넓게 세팅하지 않는다(사이트 기본 범위 사용).
+    반환: parse_grid_orders 결과 리스트.
+    """
+    driver.get(home_url)
+    accept_alerts(driver)
+    try:
+        WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.ID, "gridPlor")))
+    except TimeoutException:
+        pass
+    # 진행상태 세팅 + 조회 버튼 클릭
+    clicked = driver.execute_script("""
+        var s = document.querySelector('[name=srchPlorPrgsCdtnCode]');
+        if (!s) return 'no-select';
+        s.value = arguments[0];
+        // '조회' 버튼(alt/텍스트) 클릭. '상세조회'는 제외.
+        var els = document.querySelectorAll('img,a,button,input');
+        for (var i=0;i<els.length;i++){
+            var t = (els[i].alt||els[i].textContent||els[i].value||'').trim();
+            if (t === '조회'){ els[i].click(); return 'clicked'; }
+        }
+        for (var i=0;i<els.length;i++){
+            var t = (els[i].alt||els[i].textContent||els[i].value||'').trim();
+            if (t.indexOf('조회')>-1 && t.indexOf('상세')===-1){ els[i].click(); return 'clicked-partial'; }
+        }
+        return 'no-button';
+    """, str(status_code))
+    log(f"진행상태 {status_code} 조회: {clicked}")
+    time.sleep(3)
+    accept_alerts(driver)
+    time.sleep(1)
+    try:
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, "gridPlor")))
+    except TimeoutException:
+        pass
+    return parse_grid_orders(driver.page_source)
+
+
 def _wait_download(download_dir, exts=(".pdf", ".xlsx", ".xls"), timeout=40):
     """download_dir에 exts 파일 생성 & .crdownload 소멸 폴링. 완료 파일 경로 반환(없으면 None)."""
     deadline = time.time() + timeout
@@ -362,12 +410,10 @@ def main():
     driver = make_driver(download_dir=tmp_dir if fridge_endpoint else None)
     try:
         login(driver, login_url, username, password)
-        driver.get(home_url)
-        accept_alerts(driver)
-        WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.ID, "gridPlor")))
-        time.sleep(1)
-        orders = parse_grid_orders(driver.page_source)
-        log(f"발주 {len(orders)}건 감지")
+
+        # ── 1) 발주확정(502) 목록: 신규 발주 수집 (상세·원본 PDF 포함) ──
+        orders = fetch_grid_by_status(driver, home_url, "502")
+        log(f"발주확정(502) {len(orders)}건 감지")
 
         result = []
         for od in orders:
@@ -400,7 +446,24 @@ def main():
 
             result.append(od)
 
-        print(json.dumps(result, ensure_ascii=False))
+        # ── 2) 납품확인(503) 목록: 발주키만 수집 (사람이 교보에서 직접 납품확인한 발주 감지용) ──
+        # 502(발주확정)에서 사라지고 503(납품확인)에 나타난 발주 = 우리 시스템 경유 없이 사람이 직접 처리.
+        # Java가 이 발주키 목록으로 delivered_at을 소급 기록한다.
+        delivered_keys = []
+        try:
+            confirmed = fetch_grid_by_status(driver, home_url, "503")
+            log(f"납품확인(503) {len(confirmed)}건 감지")
+            for od in confirmed:
+                delivered_keys.append({
+                    "plorRdpCode": od.get("plorRdpCode"),
+                    "plorDate": od.get("plorDate"),
+                    "plorNum": od.get("plorNum"),
+                    "plorRdpName": od.get("plorRdpName"),
+                })
+        except Exception as e:
+            err(f"납품확인(503) 목록 조회 실패(무시): {e}")
+
+        print(json.dumps({"orders": result, "deliveredKeys": delivered_keys}, ensure_ascii=False))
         sys.stdout.flush()
     except Exception as e:
         err(f"발주 크롤링 실패: {e}")
