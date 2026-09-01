@@ -6,10 +6,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -19,7 +17,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.io.File;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -88,9 +85,11 @@ public class HottracksInternalController {
         }
     }
 
-    @Operation(summary = "발주 원본 엑셀 다운로드 (30-we [교보 엑셀] 버튼용)",
-            description = "발주키의 핫트랙스 [엑셀출력] 원본 엑셀을 반환한다. "
-                    + "오류: 401 unauthorized / 404 order_not_found(없는 발주키)·excel_not_found(엑셀 미저장).")
+    @Operation(summary = "발주 원본(PDF) 다운로드 (30-we [교보 엑셀] 버튼용)",
+            description = "발주키의 핫트랙스 [엑셀출력] 원본 PDF(사내 CDN 저장분)로 302 리다이렉트한다. "
+                    + "원본은 AIReport 뷰어→변환다운로드로 받은 PDF이며 refrigerator CDN에 보관된다. "
+                    + "오류: 401 unauthorized / 404 order_not_found(없는 발주키)·excel_not_found(원본 미저장). "
+                    + "참고: 30-we는 bsight의 excel_cdn_url을 직접 읽어 링크해도 되며, 이 엔드포인트는 crawling 경유가 필요할 때만 사용.")
     @GetMapping("/orders/excel")
     public ResponseEntity<Object> orderExcel(
             @RequestHeader(value = "X-Internal-Token", required = false) String token,
@@ -105,23 +104,14 @@ public class HottracksInternalController {
         if (orderOpt.isEmpty()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "order_not_found"));
         }
-        // 경로 주입 안전: 파라미터는 DB 조회 키로만 쓰고, 파일 경로는 DB에 저장된 excelPath만 사용(path traversal 불가).
-        String path = orderOpt.get().getExcelPath();
-        File file = (path == null || path.isBlank()) ? null : new File(path);
-        if (file == null || !file.exists()) {
+        String cdnUrl = orderOpt.get().getExcelCdnUrl();
+        if (cdnUrl == null || cdnUrl.isBlank()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "excel_not_found",
-                    "message", "엑셀이 아직 저장되지 않았습니다. 다음 수집(매시 40분) 후 다시 시도하세요."));
+                    "message", "원본이 아직 저장되지 않았습니다. 다음 수집(매시 40분) 후 다시 시도하세요."));
         }
-        // 실제 저장 파일 확장자에 맞춰 파일명·Content-Type 결정 (.xls 구형식도 지원)
-        boolean isXls = file.getName().toLowerCase().endsWith(".xls");
-        String ext = isXls ? ".xls" : ".xlsx";
-        String contentType = isXls
-                ? "application/vnd.ms-excel"
-                : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-        String filename = plorRdpCode + "_" + plorDate + "_" + plorNum + ext;
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
-                .contentType(MediaType.parseMediaType(contentType))
-                .body(new FileSystemResource(file));
+        // 사내 CDN URL로 302 리다이렉트 (파일 바이트는 CDN이 서빙).
+        return ResponseEntity.status(HttpStatus.FOUND)
+                .header(HttpHeaders.LOCATION, cdnUrl)
+                .build();
     }
 }

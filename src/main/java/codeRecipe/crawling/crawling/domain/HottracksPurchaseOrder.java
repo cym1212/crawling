@@ -93,16 +93,18 @@ public class HottracksPurchaseOrder {
     @Column(name = "collected_at", nullable = false)
     private LocalDateTime collectedAt;   // 마지막 수집 시각
 
-    // ===== 발주 원본 엑셀([엑셀출력]) 보관 =====
-    @Column(name = "excel_path", length = 500)
-    private String excelPath;            // 발주 원본 엑셀 저장 경로 (null = 미저장)
+    // ===== 발주 원본([엑셀출력]) 보관 =====
+    // 교보 [엑셀출력]은 AIReport 뷰어 → [변환후 다운로드]로 PDF를 받아 사내 CDN(refrigerator)에 저장.
+    // 여기엔 그 CDN URL만 저장(서버 디스크·DB 바이너리 안 씀). null = 미저장.
+    @Column(name = "excel_cdn_url", length = 500)
+    private String excelCdnUrl;          // 발주 원본 PDF의 refrigerator CDN URL (null = 미저장)
 
     @Column(name = "excel_saved_at")
-    private LocalDateTime excelSavedAt;  // 엑셀 저장 시각
+    private LocalDateTime excelSavedAt;  // 원본 저장 시각
 
-    /** 기수집 발주에 엑셀을 소급 저장할 때 사용 (@Builder toBuilder 대신 부분 갱신용) */
-    public void setExcelPath(String excelPath) {
-        this.excelPath = excelPath;
+    /** 기수집 발주에 원본을 소급 저장할 때 사용 (@Builder toBuilder 대신 부분 갱신용) */
+    public void setExcelCdnUrl(String excelCdnUrl) {
+        this.excelCdnUrl = excelCdnUrl;
     }
 
     public void setExcelSavedAt(LocalDateTime excelSavedAt) {

@@ -12,7 +12,8 @@ stdout: [{"plorRdpCode","plorDate","plorNum","plorRdpName","vndrCode",
            "items":[{"barcode","cmdtId","productName","plorQntt","saleUnpr"}]}]
 로그는 전부 stderr.
 """
-import sys, json, time, re, os, glob, shutil
+import sys, json, time, re, os, glob, mimetypes, uuid
+from urllib import request as urlrequest
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -194,15 +195,17 @@ def fetch_delivery_page(driver, home_url, rdp, date, num):
     return html
 
 
-def _wait_download(download_dir, timeout=30):
-    """download_dir에 새 .xlsx/.xls 생성 & .crdownload 소멸 폴링. 완료 파일 경로 반환(없으면 None)."""
+def _wait_download(download_dir, exts=(".pdf", ".xlsx", ".xls"), timeout=40):
+    """download_dir에 exts 파일 생성 & .crdownload 소멸 폴링. 완료 파일 경로 반환(없으면 None)."""
     deadline = time.time() + timeout
     while time.time() < deadline:
         # 아직 받는 중이면 대기
         if glob.glob(os.path.join(download_dir, "*.crdownload")):
             time.sleep(0.5)
             continue
-        finished = glob.glob(os.path.join(download_dir, "*.xlsx")) + glob.glob(os.path.join(download_dir, "*.xls"))
+        finished = []
+        for e in exts:
+            finished += glob.glob(os.path.join(download_dir, "*" + e))
         if finished:
             # 가장 최근 파일
             return max(finished, key=os.path.getmtime)
@@ -210,28 +213,65 @@ def _wait_download(download_dir, timeout=30):
     return None
 
 
-def download_order_excel(driver, home_url, od, storage_dir):
+def upload_to_refrigerator(file_path, endpoint, bucket, sub_path):
     """
-    발주 [엑셀출력] 원본 엑셀을 내려받아 {storage_dir}/{rdp}_{date}_{num}.xlsx 로 보관.
-    반환: 최종 절대경로(문자열), 실패 시 None.
+    파일을 사내 CDN 서비스(refrigerator)에 multipart POST → CDN URL 반환.
+    인증 헤더 없음(실측 확인). 응답 JSON의 .file 이 CDN URL.
+    표준 라이브러리만 사용(외부 requests 불필요).
+    """
+    filename = os.path.basename(file_path)
+    with open(file_path, "rb") as f:
+        file_bytes = f.read()
+    ctype = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    boundary = "----htbnd" + uuid.uuid4().hex
 
-    ⚠️ [엑셀출력] 트리거 셀렉터는 실사이트 확인 필요(의뢰서 §6).
-       gridPlor 각 행 버튼: fnPrintByBrowserType(vndrCode, vndrName, rdpCode, plorDate, plorNum,
-                                               rdpName, prgsCode, decrId)  ← 세션 조사에서 확인한 시그니처.
-       DOM 클릭보다 이 onclick JS 함수를 execute_script로 직접 호출하는 방식이 안정적
-       (fetch_delivery_page의 fnOpen2 재현과 동일 요령). 실화면에서 함수명/인자순서가 다르면
-       아래 호출부만 맞추면 된다. 버튼 위치(홈 상단/납품확인 탭)도 실화면에서 확인해 주석 갱신할 것.
+    def field(name, value):
+        return (
+            f'--{boundary}\r\n'
+            f'Content-Disposition: form-data; name="{name}"\r\n\r\n'
+            f'{value}\r\n'
+        ).encode("utf-8")
+
+    body = bytearray()
+    body += field("bucket", bucket)
+    body += field("path", sub_path)
+    body += (
+        f'--{boundary}\r\n'
+        f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'
+        f'Content-Type: {ctype}\r\n\r\n'
+    ).encode("utf-8")
+    body += file_bytes
+    body += f'\r\n--{boundary}--\r\n'.encode("utf-8")
+
+    req = urlrequest.Request(
+        endpoint, data=bytes(body),
+        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+        method="POST")
+    with urlrequest.urlopen(req, timeout=60) as resp:
+        raw = resp.read().decode("utf-8", "replace")
+    data = json.loads(raw)
+    url = data.get("file")
+    if not url:
+        raise RuntimeError(f"refrigerator 응답에 file 없음: {raw[:200]}")
+    return url
+
+
+def download_order_pdf(driver, home_url, download_dir, od, fmt="pdf"):
+    """
+    발주 [엑셀출력] 원본을 파일로 내려받는다.
+
+    실측 확정(2026-08-28): [엑셀출력](fnPrintByBrowserType) → fnAiView("prdt1010", param)가
+    https://admin.hottracks.co.kr/AISERVER?... 뷰어(AIReport 6.5)를 새 창(_ozview)으로 연다.
+    뷰어 자체는 파일이 아니라 HTML. 뷰어 안의 [변환후 다운로드](handleConvert())가
+    convertType(select) 값(pdf/excel/hwp/word/ppt)에 따라 PDFConvert()/ExcelConvert() 등을
+    호출해 실제 파일을 내려준다. 여기선 fmt(기본 pdf)로 받아 레이아웃을 100% 보존한다.
+
+    반환: 다운로드된 로컬 파일 경로(문자열), 실패 시 None.
     """
     rdp, date, num = od["plorRdpCode"], od["plorDate"], od["plorNum"]
-    final_path = os.path.join(storage_dir, f"{rdp}_{date}_{num}.xlsx")
-    # 이미 있으면 스킵 (파일 시스템이 상태 저장소 — 매시 중복 다운로드 방지)
-    if os.path.exists(final_path):
-        log(f"엑셀 이미 존재, 스킵: {final_path}")
-        return os.path.abspath(final_path)
 
-    download_dir = os.path.join(storage_dir, "tmp")
-    os.makedirs(download_dir, exist_ok=True)
     # tmp 비우기(이전 잔여 파일이 최근 파일로 잡히지 않도록)
+    os.makedirs(download_dir, exist_ok=True)
     for f in glob.glob(os.path.join(download_dir, "*")):
         try:
             os.remove(f)
@@ -240,39 +280,86 @@ def download_order_excel(driver, home_url, od, storage_dir):
 
     driver.get(home_url)
     accept_alerts(driver)
-    # [엑셀출력] 함수 직접 호출 — 발주 헤더 값으로 인자 구성.
-    # vndrName/rdpName은 리포트 표시용이라 파일 내용에 영향 적음(빈 값 허용). 실패 시 예외 → 상위에서 catch.
+    before_wins = set(driver.window_handles)
+
+    # [엑셀출력] 함수 직접 호출 → AISERVER 뷰어가 새 창(_ozview)으로 열림.
     driver.execute_script(
         "if (typeof fnPrintByBrowserType === 'function') {"
         "  fnPrintByBrowserType(arguments[0], arguments[1], arguments[2], arguments[3],"
         "                       arguments[4], arguments[5], arguments[6], arguments[7]);"
-        "} else { throw 'fnPrintByBrowserType 미정의 — 셀렉터 확인 필요(의뢰서 §6)'; }",
+        "} else { throw 'fnPrintByBrowserType 미정의 — 홈 화면에서 호출해야 함'; }",
         od.get("vndrCode", ""), od.get("vndrName", ""), rdp, date, num,
         od.get("plorRdpName", ""), od.get("plorPrgsCdtnCode", ""), od.get("plorDecrId", ""))
     time.sleep(2)
-    accept_alerts(driver)  # 엑셀출력 확인 alert 있으면 수락
+    accept_alerts(driver)
 
-    got = _wait_download(download_dir, timeout=30)
-    if not got:
-        err(f"엑셀 다운로드 대기 시간 초과: {rdp}/{date}/{num}")
+    # 뷰어 창으로 전환
+    new_wins = [h for h in driver.window_handles if h not in before_wins]
+    viewer = new_wins[-1] if new_wins else driver.window_handles[-1]
+    driver.switch_to.window(viewer)
+    # 뷰어(AIReport) 렌더 대기 — handleConvert/convertType이 준비될 때까지
+    ready = False
+    for _ in range(20):
+        try:
+            ok = driver.execute_script(
+                "return (typeof handleConvert==='function') && !!document.getElementById('convertType');")
+            if ok:
+                ready = True
+                break
+        except Exception:
+            pass
+        time.sleep(0.5)
+    if not ready:
+        err(f"뷰어 준비 안됨(handleConvert/convertType 없음): {rdp}/{date}/{num}")
+        _close_extra_windows(driver, before_wins)
         return None
-    # 실제 확장자 유지(.xls면 .xls로) — 우선 규칙대로 .xlsx 경로에 이동하되 실제 확장자 다르면 맞춤
-    ext = os.path.splitext(got)[1].lower()
-    if ext == ".xls":
-        final_path = os.path.join(storage_dir, f"{rdp}_{date}_{num}.xls")
-    shutil.move(got, final_path)
-    log(f"엑셀 저장: {final_path}")
-    return os.path.abspath(final_path)
+
+    # convertType=fmt 세팅 후 변환 다운로드
+    driver.execute_script(
+        "var s=document.getElementById('convertType'); if(s){ s.value=arguments[0]; }"
+        "handleConvert();", fmt)
+    time.sleep(2)
+    accept_alerts(driver)
+
+    exts = (".pdf",) if fmt == "pdf" else (".xlsx", ".xls")
+    got = _wait_download(download_dir, exts=exts, timeout=40)
+    _close_extra_windows(driver, before_wins)
+    if not got:
+        err(f"원본 다운로드 대기 시간 초과: {rdp}/{date}/{num}")
+        return None
+    log(f"원본 다운로드: {got}")
+    return got
+
+
+def _close_extra_windows(driver, keep_wins):
+    """keep_wins에 없는 창(뷰어·팝업)을 닫고 원래 창으로 복귀."""
+    for h in list(driver.window_handles):
+        if h not in keep_wins:
+            try:
+                driver.switch_to.window(h)
+                driver.close()
+            except Exception:
+                pass
+    # 남은 창 중 하나로 복귀
+    remaining = [h for h in driver.window_handles if h in keep_wins] or driver.window_handles
+    if remaining:
+        driver.switch_to.window(remaining[0])
 
 
 def main():
     if len(sys.argv) < 5:
-        print(json.dumps({"error": "usage: <login_url> <home_url> <username> <password> [storage_dir]"}))
+        print(json.dumps({"error": "usage: <login_url> <home_url> <username> <password> "
+                                    "[refrigerator_endpoint] [refrigerator_bucket] [refrigerator_path]"}))
         sys.exit(1)
     login_url, home_url, username, password = sys.argv[1:5]
-    storage_dir = sys.argv[5] if len(sys.argv) >= 6 and sys.argv[5].strip() else None
+    # 원본 PDF를 사내 CDN(refrigerator)에 올릴 설정. endpoint 비면 원본 다운로드 스킵.
+    fridge_endpoint = sys.argv[5] if len(sys.argv) >= 6 and sys.argv[5].strip() else None
+    fridge_bucket   = sys.argv[6] if len(sys.argv) >= 7 and sys.argv[6].strip() else "withcookie-bucket"
+    fridge_path     = sys.argv[7] if len(sys.argv) >= 8 and sys.argv[7].strip() else "hottracks-order"
 
-    driver = make_driver(download_dir=os.path.join(storage_dir, "tmp") if storage_dir else None)
+    # 다운로드는 항상 임시 폴더로만 받고, refrigerator 업로드 후 즉시 삭제(서버 디스크에 안 쌓음).
+    tmp_dir = os.path.join(os.path.abspath(os.sep + "tmp"), "ht_order_dl")
+    driver = make_driver(download_dir=tmp_dir if fridge_endpoint else None)
     try:
         login(driver, login_url, username, password)
         driver.get(home_url)
@@ -292,13 +379,24 @@ def main():
                 err(f"발주 {od.get('plorNum')} 상세 파싱 실패: {e}")
                 od["items"] = []
 
-            # 원본 엑셀 다운로드(부가 기능) — 실패해도 발주 수집은 계속
-            od["excelFile"] = None
-            if storage_dir:
+            # 원본 PDF 다운로드 → refrigerator 업로드 → CDN URL (부가 기능, 실패해도 수집 계속)
+            od["excelUrl"] = None
+            if fridge_endpoint:
+                local = None
                 try:
-                    od["excelFile"] = download_order_excel(driver, home_url, od, storage_dir)
+                    local = download_order_pdf(driver, home_url, tmp_dir, od, fmt="pdf")
+                    if local:
+                        sub = f"{fridge_path}/{od['plorRdpCode']}/{od['plorDate']}"
+                        od["excelUrl"] = upload_to_refrigerator(local, fridge_endpoint, fridge_bucket, sub)
+                        log(f"발주 {od['plorNum']} CDN 저장: {od['excelUrl']}")
                 except Exception as e:
-                    err(f"발주 {od.get('plorNum')} 엑셀 다운로드 실패: {e}")
+                    err(f"발주 {od.get('plorNum')} 원본 저장 실패: {e}")
+                finally:
+                    if local and os.path.exists(local):
+                        try:
+                            os.remove(local)
+                        except OSError:
+                            pass
 
             result.append(od)
 
