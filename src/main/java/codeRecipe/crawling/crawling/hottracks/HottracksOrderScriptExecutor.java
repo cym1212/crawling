@@ -121,7 +121,7 @@ public class HottracksOrderScriptExecutor {
             log.error("교보 발주 크롤링 실패: {}", msg);
             throw new RuntimeException("교보 발주 크롤링 실패: " + msg);
         }
-        // 응답 형식: {"orders":[...], "deliveredKeys":[...]} (이중 크롤링).
+        // 응답 형식: {"orders":[...], "activeOrderKeys":[...]} (사라짐 감지).
         // 하위호환: 과거 배열 형식이면 그대로 orders로 취급.
         JsonNode ordersNode = root.isArray() ? root : root.get("orders");
         if (ordersNode == null || !ordersNode.isArray()) {
@@ -200,27 +200,30 @@ public class HottracksOrderScriptExecutor {
             log.info("교보 발주 저장: {}/{}/{} 상품 {}개", plorRdpCode, plorDate, plorNum, items.size());
         }
 
-        // ── 납품확인(503) 목록으로 "사람이 교보에서 직접 납품확인한 발주" 감지 ──
-        // 우리 봇 경유(DELIVERING/DELIVERED/DELIVERED_TMP/FAILED)가 아닌데 503에 나타난 발주 =
-        // 사람이 시스템 밖에서 직접 처리한 것 → delivered_at 소급 기록해 30-we 화면에서 납품완료로 넘긴다.
-        JsonNode deliveredKeys = root.get("deliveredKeys");
-        int syncedManual = 0;
-        if (deliveredKeys != null && deliveredKeys.isArray()) {
-            for (JsonNode dk : deliveredKeys) {
-                String rdp = text(dk, "plorRdpCode");
-                String date = text(dk, "plorDate");
-                String num = text(dk, "plorNum");
-                if (rdp.isEmpty() || date.isEmpty() || num.isEmpty()) {
-                    continue;
-                }
-                var opt = orderRepository.findByPlorRdpCodeAndPlorDateAndPlorNum(rdp, date, num);
-                if (opt.isEmpty()) {
-                    // 503에만 있고 우리가 발주확정 때 수집 못 한 발주(과거분 등)는 스킵 — 발주 내역이 없어 명세서 기반 반영 불가.
-                    continue;
-                }
-                HottracksPurchaseOrder ex = opt.get();
-                if (ex.getDeliveredAt() != null) {
-                    continue;  // 이미 납품 처리됨(봇 경유 포함)
+        // ── "발주확정에서 사라진 발주 = 처리됨(발주확인 눌림)" 감지 (사라짐 감지) ──
+        // 홈 gridPlor(최근 약 7일)에 발주확정만 노출된다. 발주확인을 누르면 목록에서 빠진다.
+        // bsight 미처리(delivered_at null) 발주 중 발주일이 조회범위 안인데 이번 홈 목록(activeOrderKeys)에
+        // 없으면 = 처리된 것 → delivered 기록. 사람이 직접 처리하든 시스템이 처리하든 "사라짐"으로 판정.
+        java.util.Set<String> activeKeys = new java.util.HashSet<>();
+        JsonNode activeNode = root.get("activeOrderKeys");
+        if (activeNode != null && activeNode.isArray()) {
+            for (JsonNode ak : activeNode) {
+                activeKeys.add(text(ak, "plorRdpCode") + "|" + text(ak, "plorDate") + "|" + text(ak, "plorNum"));
+            }
+        }
+        // 조회범위 하한: 오늘 기준 7일 전(홈 기본범위 약 7일보다 좁게 잡아 "범위 밖이라 안 보임"을 사라짐으로 오판하지 않게).
+        // plorDate는 "YYYYMMDD" 문자열이라 같은 형식으로 하한을 만들어 문자열 비교.
+        String plorDateFrom = now.toLocalDate().minusDays(7).format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE);
+
+        int syncedGone = 0;
+        // activeOrderKeys가 비정상(파싱 실패)일 땐 전량 delivered 오처리 위험 → activeNode 있을 때만 감지 수행.
+        if (activeNode != null && activeNode.isArray()) {
+            List<HottracksPurchaseOrder> pending =
+                    orderRepository.findByDeliveredAtIsNullAndPlorDateGreaterThanEqual(plorDateFrom);
+            for (HottracksPurchaseOrder ex : pending) {
+                String key = ex.getPlorRdpCode() + "|" + ex.getPlorDate() + "|" + ex.getPlorNum();
+                if (activeKeys.contains(key)) {
+                    continue;  // 아직 발주확정에 남아있음 = 미처리
                 }
                 // 우리 봇이 처리 중/완료/실패 상태면 봇 흐름이 관리하므로 건드리지 않는다.
                 String st = ex.getStatus();
@@ -229,15 +232,16 @@ public class HottracksOrderScriptExecutor {
                 }
                 orderRepository.save(ex.toBuilder()
                         .status("DELIVERED")
-                        .deliveryMode("MANUAL")   // 사람이 교보에서 직접 처리
+                        .deliveryMode("MANUAL")   // 발주확정에서 사라짐 = 사람/시스템이 발주확인 처리
                         .deliveredAt(now)
                         .build());
-                syncedManual++;
-                log.info("교보 발주 사람 직접 납품확인 감지 → delivered 기록: {}/{}/{}", rdp, date, num);
+                syncedGone++;
+                log.info("교보 발주 발주확정에서 사라짐 → delivered 기록: {}/{}/{}",
+                        ex.getPlorRdpCode(), ex.getPlorDate(), ex.getPlorNum());
             }
         }
-        if (syncedManual > 0) {
-            log.info("교보 사람 직접처리 발주 {}건 delivered 소급 반영", syncedManual);
+        if (syncedGone > 0) {
+            log.info("교보 사라짐 감지 발주 {}건 delivered 반영", syncedGone);
         }
 
         return saved;
