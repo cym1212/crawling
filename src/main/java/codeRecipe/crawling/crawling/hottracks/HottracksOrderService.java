@@ -4,11 +4,14 @@ import codeRecipe.crawling.crawling.domain.HottracksPurchaseOrder;
 import codeRecipe.crawling.crawling.repository.HottracksPurchaseOrderRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -28,6 +31,10 @@ public class HottracksOrderService {
     private final HottracksOrderScriptExecutor orderScriptExecutor;
     private final HottracksPurchaseOrderRepository orderRepository;
     private final HottracksSlackNotifier slackNotifier;
+
+    /** 30-we 화면 호스트 (예: https://jack.coderecipe.io). 비면 링크 없이 문구만. */
+    @Value("${hottracks.slack.order-screen-url:}")
+    private String orderScreenUrl;
 
     /** @param pendingCount 알림은 이미 갔지만 아직 납품 처리 안 된 발주 수(매일 재알림 대상) */
     public record DigestResult(int collectedCount, int unnotifiedCount, int notifiedCount, int pendingCount,
@@ -122,8 +129,22 @@ public class HottracksOrderService {
                         .append("\n");
             }
         }
-        sb.append("\n30-we.com 교보 발주 납품 화면에서 거래명세서 등록 → 배송대기(납품확인)까지 처리해 주세요.");
+        sb.append("\n").append(screenLink());
         return sb.toString();
+    }
+
+    /**
+     * 30-we 워크스페이스 딥링크. 거래 관리 메뉴가 있는 셸 안에서 '교보 발주 납품' 탭이 바로 열린다.
+     * 영풍 부족재고 알림(30-we DetectLowStockTrade::screenUrl)과 같은 형식.
+     */
+    private String screenLink() {
+        if (orderScreenUrl == null || orderScreenUrl.isBlank()) {
+            return "30-we.com 교보 발주 납품 화면에서 거래명세서 등록 → 배송대기(납품확인)까지 처리해 주세요.";
+        }
+        String base = orderScreenUrl.replaceAll("/+$", "");
+        String url = base + "/admin/workspace?url=" + URLEncoder.encode("/admin/hottracks/orders", StandardCharsets.UTF_8)
+                + "&title=" + URLEncoder.encode("교보 발주 납품", StandardCharsets.UTF_8);
+        return "👉 <" + url + "|교보 발주 납품 화면에서 처리하기>  ·  거래명세서 등록 → 배송대기(납품확인)까지";
     }
 
     /** "지점 / 발주번호 N / YYYY-MM-DD / N개" */
