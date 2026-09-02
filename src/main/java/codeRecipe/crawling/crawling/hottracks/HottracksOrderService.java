@@ -65,6 +65,14 @@ public class HottracksOrderService {
 
         boolean sent = slackNotifier.send(text);
 
+        // 실제로 발송된 경우에만 알림 완료(notified_at)로 표시한다.
+        // 웹훅 미설정·Slack 오류로 못 보냈는데 표시해 버리면 그 발주는 설정을 고친 뒤에도 영영 알림이 안 간다
+        // (2026-09-01 창원점 사례). 미발송이면 다음 다이제스트에서 다시 시도한다.
+        if (!sent) {
+            log.warn("교보 발주 다이제스트 미발송 — {}건은 알림 완료로 표시하지 않음(다음 다이제스트에 재시도)", unnotified.size());
+            return new DigestResult(collectedCount, unnotified.size(), 0, false, text);
+        }
+
         LocalDateTime notifiedAt = LocalDateTime.now(SEOUL).truncatedTo(ChronoUnit.SECONDS);
         List<HottracksPurchaseOrder> toMark = new ArrayList<>();
         for (HottracksPurchaseOrder order : unnotified) {
