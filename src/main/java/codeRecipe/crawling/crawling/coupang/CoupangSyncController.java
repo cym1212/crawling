@@ -42,11 +42,12 @@ public class CoupangSyncController {
     private final CoupangRestockProperties restockProperties;
     private final CoupangInternalAuth internalAuth;
 
-    @Operation(summary = "⑤ 판매자배송 주문 수집 + 다이제스트",
-            description = "최근 23시간의 결제완료(ACCEPT) 판매자배송 주문을 수집해 저장하고(주문·상품·수취인), "
-                    + "아직 알림 안 된 주문을 다이제스트 카드로 슬랙 발송한다. 0건이면 발송하지 않는다. "
-                    + "dryRun=true면 수집은 수행하되 슬랙 발송·알림 처리 없이 미리보기만 반환. "
-                    + "스케줄러가 매일 09:00/12:00에 자동 실행하는 작업과 동일.")
+    @Operation(summary = "⑤ 판매자배송 상태 동기화 + 주문 수집 + 다이제스트",
+            description = "①미출고 주문을 쿠팡에 단건 재조회해서 Wing 직접 처리·취소를 DB에 반영하고(상태 동기화), "
+                    + "②최근 23시간의 결제완료(ACCEPT) 주문을 수집해 저장한 뒤(주문·상품·수취인), "
+                    + "③신규 주문 + 미처리 재알림 + 취소 감지를 한 장의 다이제스트 카드로 슬랙 발송한다. "
+                    + "전부 0건이면 발송하지 않는다. dryRun=true면 동기화·수집은 수행하되 "
+                    + "슬랙 발송·알림 처리 없이 미리보기만 반환. 스케줄러가 매일 08:00/12:00에 자동 실행하는 작업과 동일.")
     @PostMapping("/coupang/orders/digest")
     public ResponseEntity<Object> orderDigest(
             @Parameter(description = "내부 인증 토큰 (공통 app.internal.token 값(application-internal.yml))")
@@ -56,8 +57,9 @@ public class CoupangSyncController {
         if (!internalAuth.isAuthorized(token)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "unauthorized"));
         }
+        CoupangMarketplaceOrderService.StatusSyncResult sync = marketplaceOrderService.syncPendingOrderStatuses();
         int collected = marketplaceOrderService.collectNewOrders();
-        return ResponseEntity.ok(marketplaceOrderService.sendDigest(dryRun, collected));
+        return ResponseEntity.ok(marketplaceOrderService.sendDigest(dryRun, collected, sync));
     }
 
     @Operation(summary = "① 상품명 매핑 동기화",

@@ -28,6 +28,13 @@ import java.time.LocalDateTime;
         uniqueConstraints = @UniqueConstraint(name = "uk_marketplace_order_id", columnNames = "order_id"))
 public class CoupangMarketplaceOrder {
 
+    /**
+     * 자체 취소 마커. 쿠팡 발주서 상태값(ACCEPT/INSTRUCT/DEPARTURE/...)에는 취소가 없고
+     * 단건 조회가 400을 반환하는 것으로 취소/반품을 감지해 이 값으로 기록한다.
+     * 30-we.com 화면(미출고 탭 제외·취소 배지)도 이 문자열을 그대로 사용한다.
+     */
+    public static final String STATUS_CANCELED = "CANCELED";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "marketplace_order_id")

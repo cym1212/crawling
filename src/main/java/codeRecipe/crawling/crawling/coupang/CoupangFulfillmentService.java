@@ -47,6 +47,9 @@ public class CoupangFulfillmentService {
         }
         CoupangMarketplaceOrder order = orderRepository.findByOrderId(orderId)
                 .orElseThrow(() -> new IllegalArgumentException("주문을 찾을 수 없습니다: " + orderId));
+        if (CoupangMarketplaceOrder.STATUS_CANCELED.equals(order.getCoupangStatus())) {
+            throw new IllegalStateException("취소/반품된 주문이라 출고할 수 없습니다: " + orderId);
+        }
         if (order.getShippedAt() != null) {
             throw new IllegalStateException("이미 송장이 등록된 주문입니다 (송장번호 " + order.getTrackingNumber() + ")");
         }

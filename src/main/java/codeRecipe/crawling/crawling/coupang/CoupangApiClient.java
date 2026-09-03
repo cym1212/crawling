@@ -85,6 +85,16 @@ public class CoupangApiClient {
         return getWithRetry(path, query);
     }
 
+    /**
+     * 발주서 단건 조회 (주문번호). 분리배송된 주문은 data 배열에 배송박스별로 여러 건이 온다.
+     * 취소/반품된 주문은 쿠팡이 400을 반환한다 (별도 취소 상태값 없음 — 공식 문서 명시).
+     */
+    public JsonNode getOrderSheetByOrderId(long orderId) {
+        String path = "/v2/providers/openapi/apis/api/v5/vendors/" + properties.getVendorId()
+                + "/" + orderId + "/ordersheets";
+        return getWithRetry(path, "");
+    }
+
     /** 상품 목록 페이징 조회 (sellerProductId/sellerProductName, vendorItemId 없음) */
     public JsonNode getSellerProducts(String nextToken) {
         String path = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products";

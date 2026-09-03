@@ -96,4 +96,36 @@ class CoupangMarketplaceOrderServiceTest {
         assertNull(CoupangMarketplaceOrderService.parseDateTime(null));
         assertNull(CoupangMarketplaceOrderService.parseDateTime("이상한값"));
     }
+
+    @Test
+    void 단건조회에서_추적중인_배송박스를_고른다() throws Exception {
+        JsonNode data = json("""
+                [{"shipmentBoxId": 111, "status": "ACCEPT"},
+                 {"shipmentBoxId": 222, "status": "DEPARTURE"}]
+                """);
+        assertEquals("DEPARTURE",
+                CoupangMarketplaceOrderService.pickShipmentBox(data, 222L).path("status").asText());
+        // 저장된 박스ID가 응답에 없으면(분리배송 재편 등) 첫 건으로 폴백
+        assertEquals("ACCEPT",
+                CoupangMarketplaceOrderService.pickShipmentBox(data, 999L).path("status").asText());
+        assertEquals("ACCEPT",
+                CoupangMarketplaceOrderService.pickShipmentBox(data, null).path("status").asText());
+        assertNull(CoupangMarketplaceOrderService.pickShipmentBox(json("[]"), 111L));
+        assertNull(CoupangMarketplaceOrderService.pickShipmentBox(json("{}"), 111L));
+    }
+
+    @Test
+    void 송장번호는_박스레벨_우선_상품레벨_폴백으로_추출한다() throws Exception {
+        assertEquals("612345",
+                CoupangMarketplaceOrderService.extractInvoiceNumber(json("""
+                        {"invoiceNumber": "612345", "orderItems": [{"invoiceNumber": "다른값"}]}
+                        """)));
+        assertEquals("7999",
+                CoupangMarketplaceOrderService.extractInvoiceNumber(json("""
+                        {"invoiceNumber": null, "orderItems": [{"vendorItemId": 1}, {"invoiceNumber": "7999"}]}
+                        """)));
+        assertNull(CoupangMarketplaceOrderService.extractInvoiceNumber(json("""
+                        {"orderItems": [{"vendorItemId": 1}]}
+                        """)));
+    }
 }

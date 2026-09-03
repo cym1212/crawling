@@ -16,4 +16,7 @@ public interface CoupangMarketplaceOrderRepository extends JpaRepository<Coupang
 
     /** 아직 다이제스트로 알리지 않은 주문 (결제 오래된 순) */
     List<CoupangMarketplaceOrder> findByNotifiedAtIsNullOrderByPaidAtAsc();
+
+    /** 송장 미등록(미출고) 주문 — 상태 동기화·미처리 재알림 대상 (취소 여부는 서비스에서 걸러냄) */
+    List<CoupangMarketplaceOrder> findByShippedAtIsNullOrderByPaidAtAsc();
 }
