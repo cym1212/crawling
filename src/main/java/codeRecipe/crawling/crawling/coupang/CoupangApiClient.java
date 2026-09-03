@@ -162,11 +162,30 @@ public class CoupangApiClient {
         } catch (HttpStatusCodeException e) {
             log.error("쿠팡 API 호출 실패 status={} {} {} body={}", e.getStatusCode(), method, path,
                     e.getResponseBodyAsString());
-            throw new CoupangApiException("쿠팡 API 호출 실패: " + e.getStatusCode(), e.getStatusCode(), e);
+            // 쿠팡 거부 사유를 메시지에 포함 — 30-we 화면 알림까지 그대로 전달된다
+            String detail = extractErrorMessage(e.getResponseBodyAsString());
+            throw new CoupangApiException("쿠팡 API 호출 실패: " + e.getStatusCode()
+                    + (detail.isEmpty() ? "" : " - " + detail), e.getStatusCode(), e);
         } catch (Exception e) {
             log.error("쿠팡 API 응답 처리 실패 {} {}", method, path, e);
             throw new CoupangApiException("쿠팡 API 응답 처리 실패", null, e);
         }
+    }
+
+    /** 오류 응답 본문에서 message 필드를 추출한다 (JSON 아니면 300자 절삭 원문) */
+    private String extractErrorMessage(String body) {
+        if (body == null || body.isBlank()) {
+            return "";
+        }
+        try {
+            String message = objectMapper.readTree(body).path("message").asText("");
+            if (!message.isBlank()) {
+                return message;
+            }
+        } catch (Exception ignored) {
+            // JSON 파싱 실패 시 원문 사용
+        }
+        return body.length() > 300 ? body.substring(0, 300) : body;
     }
 
     private synchronized void throttle() {
