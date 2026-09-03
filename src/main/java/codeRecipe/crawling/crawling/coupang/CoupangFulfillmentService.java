@@ -38,6 +38,45 @@ public class CoupangFulfillmentService {
                              String deliveryCompanyCode, String trackingNumber, String message) {
     }
 
+    public record BulkShipItem(Long orderId, Long shipmentBoxId, String deliveryCompanyCode, String invoiceNumber) {
+    }
+
+    public record BulkShipEntryResult(Long orderId, Long shipmentBoxId, boolean success, String message) {
+    }
+
+    public record BulkShipResult(int requested, int succeeded, int failed, List<BulkShipEntryResult> results) {
+    }
+
+    /**
+     * 일괄 출고: 박스별로 ship()을 순차 실행한다 (호출 스로틀은 API 클라이언트가 보장).
+     * 개별 건 실패는 건너뛰고 계속 진행하며 박스별 성공/실패를 반환한다 (부분 성공 허용).
+     */
+    public BulkShipResult shipBulk(List<BulkShipItem> items) {
+        if (items == null || items.isEmpty()) {
+            throw new IllegalArgumentException("items(출고 목록)가 비어 있습니다");
+        }
+        List<BulkShipEntryResult> results = new ArrayList<>();
+        int succeeded = 0;
+        for (BulkShipItem item : items) {
+            try {
+                if (item.orderId() == null) {
+                    throw new IllegalArgumentException("orderId가 없습니다");
+                }
+                ShipResult result = ship(item.orderId(), item.shipmentBoxId(),
+                        item.deliveryCompanyCode(), item.invoiceNumber());
+                results.add(new BulkShipEntryResult(item.orderId(), item.shipmentBoxId(), true, result.message()));
+                succeeded++;
+            } catch (Exception e) {
+                String message = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+                results.add(new BulkShipEntryResult(item.orderId(), item.shipmentBoxId(), false, message));
+                log.warn("판매자배송 일괄 출고 개별 실패 orderId={} boxId={}: {}",
+                        item.orderId(), item.shipmentBoxId(), message);
+            }
+        }
+        log.info("판매자배송 일괄 출고 완료 요청={} 성공={} 실패={}", items.size(), succeeded, items.size() - succeeded);
+        return new BulkShipResult(items.size(), succeeded, items.size() - succeeded, results);
+    }
+
     public record AcknowledgeResult(int requested, int acknowledged, int alreadyAcknowledged,
                                     List<Long> notFound, List<Long> skippedCancelled, List<Long> skippedShipped,
                                     List<Long> receiverUpdated) {

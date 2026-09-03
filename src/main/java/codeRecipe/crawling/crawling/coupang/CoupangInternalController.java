@@ -43,6 +43,31 @@ public class CoupangInternalController {
     public record AcknowledgeRequest(java.util.List<Long> shipmentBoxIds) {
     }
 
+    /** 일괄 출고 요청 본문 */
+    public record BulkShipRequest(java.util.List<CoupangFulfillmentService.BulkShipItem> items) {
+    }
+
+    @Operation(summary = "판매자배송 일괄 출고 (여러 박스 준비중 + 송장 등록)",
+            description = "30-we.com [쿠팡 일괄 등록] 버튼용. 여러 배송박스를 순차로 출고 처리한다 "
+                    + "(박스별 준비중 처리 + 송장 등록 — 개별 /ship과 동일 로직). "
+                    + "개별 건이 실패해도 나머지는 계속 진행하며 results에 박스별 성공/실패와 사유를 담아 반환한다. "
+                    + "오류: 401 unauthorized / 400 bad_request(목록 비어있음).")
+    @PostMapping("/orders/ship-bulk")
+    public ResponseEntity<Object> shipBulk(
+            @Parameter(description = "내부 인증 토큰 (공통 app.internal.token 값(application-internal.yml))")
+            @RequestHeader(value = "X-Internal-Token", required = false) String token,
+            @RequestBody BulkShipRequest request) {
+        if (!internalAuth.isAuthorized(token)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "unauthorized"));
+        }
+        try {
+            return ResponseEntity.ok(fulfillmentService.shipBulk(request.items()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+                    "error", "bad_request", "message", e.getMessage() == null ? "" : e.getMessage()));
+        }
+    }
+
     @Operation(summary = "판매자배송 발주확인 처리 (결제완료 → 상품준비중)",
             description = "30-we.com [발주확인 처리] 버튼용. 체크한 배송박스들을 일괄로 상품준비중으로 전환한다 "
                     + "(Wing의 발주확인과 동일 — 전환 후에는 구매자 단독 취소 불가). "
