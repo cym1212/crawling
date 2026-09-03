@@ -39,6 +39,37 @@ public class CoupangInternalController {
     public record ShipRequest(String deliveryCompanyCode, String invoiceNumber, Long shipmentBoxId) {
     }
 
+    /** 발주확인 요청 본문 */
+    public record AcknowledgeRequest(java.util.List<Long> shipmentBoxIds) {
+    }
+
+    @Operation(summary = "판매자배송 발주확인 처리 (결제완료 → 상품준비중)",
+            description = "30-we.com [발주확인 처리] 버튼용. 체크한 배송박스들을 일괄로 상품준비중으로 전환한다 "
+                    + "(Wing의 발주확인과 동일 — 전환 후에는 구매자 단독 취소 불가). "
+                    + "처리 직후 각 주문의 수취인 정보를 쿠팡에 재조회해서 결제완료 동안 바뀐 배송지를 갱신하고, "
+                    + "갱신된 박스 목록을 receiverUpdated로 반환한다. 이미 처리·출고·취소된 박스는 건너뛴다(멱등). "
+                    + "오류: 401 unauthorized / 400 bad_request / 502 coupang_api_error.")
+    @PostMapping("/orders/acknowledge")
+    public ResponseEntity<Object> acknowledge(
+            @Parameter(description = "내부 인증 토큰 (공통 app.internal.token 값(application-internal.yml))")
+            @RequestHeader(value = "X-Internal-Token", required = false) String token,
+            @RequestBody AcknowledgeRequest request) {
+        if (!internalAuth.isAuthorized(token)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "unauthorized"));
+        }
+        try {
+            return ResponseEntity.ok(fulfillmentService.acknowledge(request.shipmentBoxIds()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+                    "error", "bad_request", "message", e.getMessage() == null ? "" : e.getMessage()));
+        } catch (CoupangApiException e) {
+            log.error("판매자배송 발주확인 처리 실패", e);
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of(
+                    "error", "coupang_api_error",
+                    "message", e.getMessage() == null ? "" : e.getMessage()));
+        }
+    }
+
     @Operation(summary = "실시간 재고 조회",
             description = "쿠팡 로켓그로스 재고를 라이브로 전체 페이징 조회해서 즉시 반환하고, "
                     + "조회 결과는 coupang_inventory 스냅샷에도 반영한다 (마지막 동기화 시각 갱신. 저장 실패해도 응답은 정상). "

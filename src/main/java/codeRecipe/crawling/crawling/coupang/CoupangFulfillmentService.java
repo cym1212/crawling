@@ -38,6 +38,110 @@ public class CoupangFulfillmentService {
                              String deliveryCompanyCode, String trackingNumber, String message) {
     }
 
+    public record AcknowledgeResult(int requested, int acknowledged, int alreadyAcknowledged,
+                                    List<Long> notFound, List<Long> skippedCancelled, List<Long> skippedShipped,
+                                    List<Long> receiverUpdated) {
+    }
+
+    /**
+     * 발주확인 처리 (결제완료 → 상품준비중, Wing의 [발주확인 처리]와 동일).
+     * 30-we 화면에서 체크한 배송박스들을 일괄 전환한다. 전환 후에는 구매자가 단독으로 취소할 수 없다.
+     * 처리 직후 각 주문의 수취인 정보를 쿠팡에 재조회해 갱신한다 — 결제완료 동안 구매자가
+     * 배송지를 바꿨을 수 있어서다 (쿠팡 공식 권장 절차). 이미 처리된 박스는 건너뛴다(멱등).
+     */
+    public AcknowledgeResult acknowledge(List<Long> shipmentBoxIds) {
+        if (shipmentBoxIds == null || shipmentBoxIds.isEmpty()) {
+            throw new IllegalArgumentException("shipmentBoxIds(배송박스 목록)가 비어 있습니다");
+        }
+        List<Long> distinct = shipmentBoxIds.stream().distinct().toList();
+        var rowsByBox = orderRepository.findByShipmentBoxIdIn(distinct).stream()
+                .collect(java.util.stream.Collectors.toMap(CoupangMarketplaceOrder::getShipmentBoxId, r -> r));
+
+        List<Long> notFound = new ArrayList<>();
+        List<Long> skippedCancelled = new ArrayList<>();
+        List<Long> skippedShipped = new ArrayList<>();
+        List<Long> alreadyAcked = new ArrayList<>();
+        List<CoupangMarketplaceOrder> toAck = new ArrayList<>();
+        for (Long boxId : distinct) {
+            CoupangMarketplaceOrder row = rowsByBox.get(boxId);
+            if (row == null) {
+                notFound.add(boxId);
+            } else if (CoupangMarketplaceOrder.STATUS_CANCELED.equals(row.getCoupangStatus())) {
+                skippedCancelled.add(boxId);
+            } else if (row.getShippedAt() != null) {
+                skippedShipped.add(boxId);
+            } else if (row.getAcknowledgedAt() != null) {
+                alreadyAcked.add(boxId);
+            } else {
+                toAck.add(row);
+            }
+        }
+
+        List<CoupangMarketplaceOrder> acked = new ArrayList<>();
+        if (!toAck.isEmpty()) {
+            JSONArray boxArray = new JSONArray();
+            toAck.forEach(r -> boxArray.put(r.getShipmentBoxId()));
+            String body = new JSONObject()
+                    .put("vendorId", apiProperties.getVendorId())
+                    .put("shipmentBoxIds", boxArray)
+                    .toString();
+            JsonNode response = coupangApiClient.patchOrdersheetAcknowledgement(body);
+            assertCoupangSuccess(response, "발주확인 처리");
+            LocalDateTime now = LocalDateTime.now(SEOUL).truncatedTo(ChronoUnit.SECONDS);
+            for (CoupangMarketplaceOrder row : toAck) {
+                acked.add(row.toBuilder().acknowledgedAt(now).coupangStatus("INSTRUCT").build());
+            }
+            orderRepository.saveAll(acked);
+            log.info("판매자배송 발주확인 완료 - {}건 (박스 {})", acked.size(), boxArray);
+        }
+        List<Long> receiverUpdated = refreshReceivers(acked);
+        return new AcknowledgeResult(distinct.size(), acked.size(), alreadyAcked.size(),
+                notFound, skippedCancelled, skippedShipped, receiverUpdated);
+    }
+
+    /** 발주확인 직후 수취인 정보 재조회·갱신. 실패해도 발주확인 자체는 유효하므로 로그만 남긴다. */
+    private List<Long> refreshReceivers(List<CoupangMarketplaceOrder> rows) {
+        List<Long> changed = new ArrayList<>();
+        var byOrder = rows.stream()
+                .collect(java.util.stream.Collectors.groupingBy(CoupangMarketplaceOrder::getOrderId));
+        for (var entry : byOrder.entrySet()) {
+            try {
+                JsonNode data = coupangApiClient.getOrderSheetByOrderId(entry.getKey()).path("data");
+                for (CoupangMarketplaceOrder row : entry.getValue()) {
+                    JsonNode sheet = CoupangMarketplaceOrderService.pickShipmentBox(data, row.getShipmentBoxId());
+                    if (sheet == null) {
+                        continue;
+                    }
+                    JsonNode receiver = sheet.path("receiver");
+                    String name = CoupangJsonUtils.textOrNull(receiver, "name");
+                    String phone = CoupangJsonUtils.textOrNull(receiver, "safeNumber");
+                    String addr1 = CoupangJsonUtils.textOrNull(receiver, "addr1");
+                    String addr2 = CoupangJsonUtils.textOrNull(receiver, "addr2");
+                    String postCode = CoupangJsonUtils.textOrNull(receiver, "postCode");
+                    String message = CoupangJsonUtils.textOrNull(sheet, "parcelPrintMessage");
+                    boolean same = java.util.Objects.equals(name, row.getReceiverName())
+                            && java.util.Objects.equals(phone, row.getReceiverPhone())
+                            && java.util.Objects.equals(addr1, row.getReceiverAddr1())
+                            && java.util.Objects.equals(addr2, row.getReceiverAddr2())
+                            && java.util.Objects.equals(postCode, row.getReceiverPostCode())
+                            && java.util.Objects.equals(message, row.getParcelPrintMessage());
+                    if (!same) {
+                        orderRepository.save(row.toBuilder()
+                                .receiverName(name).receiverPhone(phone)
+                                .receiverAddr1(addr1).receiverAddr2(addr2).receiverPostCode(postCode)
+                                .parcelPrintMessage(message)
+                                .build());
+                        changed.add(row.getShipmentBoxId());
+                        log.info("판매자배송 박스 {} 수취인 정보 변경 감지 - 갱신", row.getShipmentBoxId());
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("판매자배송 주문 {} 수취인 재조회 실패 - 기존 정보 유지", entry.getKey(), e);
+            }
+        }
+        return changed;
+    }
+
     /**
      * @param shipmentBoxId 출고할 배송박스. 주문의 박스가 하나뿐이면 생략 가능,
      *                      여러 개(배송비 그룹 분할)면 필수 — 준비중·송장 등록이 전부 박스 단위라서다.
