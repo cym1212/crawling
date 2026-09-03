@@ -180,15 +180,18 @@ public class CoupangMarketplaceOrderService {
         } while (nextToken != null && pages < MAX_PAGES);
 
         LocalDateTime collectedAt = now.truncatedTo(ChronoUnit.SECONDS);
-        Set<Long> seenOrderIds = new HashSet<>();
+        Set<String> seenBoxes = new HashSet<>();
         int saved = 0;
         for (ParsedOrder order : parsed) {
-            if (!seenOrderIds.add(order.orderId())) {
-                // 분리배송(같은 주문 다중 박스): 첫 박스만 저장 (희귀 케이스)
-                log.warn("판매자배송 주문 {} 에 배송박스가 여러 개 — 첫 박스만 저장", order.orderId());
+            // 배송박스(묶음배송) 단위로 저장 — 배송비 그룹이 다른 상품을 함께 주문하면
+            // 쿠팡이 한 주문을 여러 박스로 나누고, 출고(준비중·송장 등록)도 박스별로 해야 한다
+            if (!seenBoxes.add(order.orderId() + ":" + order.shipmentBoxId())) {
                 continue;
             }
-            if (orderRepository.existsByOrderId(order.orderId())) {
+            boolean exists = order.shipmentBoxId() != null
+                    ? orderRepository.existsByOrderIdAndShipmentBoxId(order.orderId(), order.shipmentBoxId())
+                    : orderRepository.existsByOrderId(order.orderId());
+            if (exists) {
                 continue;
             }
             orderRepository.save(CoupangMarketplaceOrder.builder()
@@ -212,6 +215,7 @@ public class CoupangMarketplaceOrderService {
             for (ParsedItem item : order.items()) {
                 itemEntities.add(CoupangMarketplaceOrderItem.builder()
                         .orderId(order.orderId())
+                        .shipmentBoxId(order.shipmentBoxId())
                         .vendorItemId(item.vendorItemId())
                         .productName(item.productName())
                         .quantity(item.quantity())
@@ -432,8 +436,18 @@ public class CoupangMarketplaceOrderService {
         blocks.put(contextBlock(now.format(DIGEST_HEADER_TIME) + " 발송"));
         blocks.put(divider());
 
+        // 같은 주문이 배송박스로 나뉘어 여러 행일 때 "묶음 i/n" 표기
+        Map<Long, Integer> boxTotal = new java.util.HashMap<>();
         for (CoupangMarketplaceOrder order : newOrders) {
-            appendOrderBlocks(blocks, order, itemsByOrderId, null);
+            boxTotal.merge(order.getOrderId(), 1, Integer::sum);
+        }
+        for (CoupangMarketplaceOrder order : reminders) {
+            boxTotal.merge(order.getOrderId(), 1, Integer::sum);
+        }
+        Map<Long, Integer> boxSeen = new java.util.HashMap<>();
+
+        for (CoupangMarketplaceOrder order : newOrders) {
+            appendOrderBlocks(blocks, order, itemsByOrderId, null, boxLabel(order, boxTotal, boxSeen));
         }
 
         if (!reminders.isEmpty()) {
@@ -444,7 +458,7 @@ public class CoupangMarketplaceOrderService {
                 blocks.put(divider());
             }
             for (CoupangMarketplaceOrder order : reminders) {
-                appendOrderBlocks(blocks, order, itemsByOrderId, now);
+                appendOrderBlocks(blocks, order, itemsByOrderId, now, boxLabel(order, boxTotal, boxSeen));
             }
         }
 
@@ -476,11 +490,32 @@ public class CoupangMarketplaceOrderService {
         return blocks;
     }
 
-    /** 주문 1건 = 상품 section + 결제·주문번호 context + divider. nowForElapsed가 있으면 경과일 표기(미처리용) */
+    /** 같은 주문의 박스가 여러 개 표시될 때만 "묶음 i/n" 라벨 (단일 박스는 null) */
+    private static String boxLabel(CoupangMarketplaceOrder order,
+                                   Map<Long, Integer> boxTotal, Map<Long, Integer> boxSeen) {
+        int total = boxTotal.getOrDefault(order.getOrderId(), 1);
+        int index = boxSeen.merge(order.getOrderId(), 1, Integer::sum);
+        return total > 1 ? "묶음 " + index + "/" + total : null;
+    }
+
+    /** 행(배송박스)에 속한 상품 — 박스 매칭 우선, 스키마 확장 전 수집분(박스 null)은 폴백으로 허용 */
+    private static List<CoupangMarketplaceOrderItem> boxItems(
+            CoupangMarketplaceOrder order, Map<Long, List<CoupangMarketplaceOrderItem>> itemsByOrderId) {
+        List<CoupangMarketplaceOrderItem> all = itemsByOrderId.getOrDefault(order.getOrderId(), List.of());
+        List<CoupangMarketplaceOrderItem> matched = all.stream()
+                .filter(i -> i.getShipmentBoxId() != null && i.getShipmentBoxId().equals(order.getShipmentBoxId()))
+                .toList();
+        if (!matched.isEmpty()) {
+            return matched;
+        }
+        return all.stream().filter(i -> i.getShipmentBoxId() == null).toList();
+    }
+
+    /** 박스 1건 = 상품 section + 결제·주문번호 context + divider. nowForElapsed가 있으면 경과일 표기(미처리용) */
     private void appendOrderBlocks(JSONArray blocks, CoupangMarketplaceOrder order,
                                    Map<Long, List<CoupangMarketplaceOrderItem>> itemsByOrderId,
-                                   LocalDateTime nowForElapsed) {
-        List<CoupangMarketplaceOrderItem> items = itemsByOrderId.getOrDefault(order.getOrderId(), List.of());
+                                   LocalDateTime nowForElapsed, String boxLabel) {
+        List<CoupangMarketplaceOrderItem> items = boxItems(order, itemsByOrderId);
         StringBuilder title = new StringBuilder();
         boolean first = true;
         for (CoupangMarketplaceOrderItem item : items) {
@@ -498,6 +533,9 @@ public class CoupangMarketplaceOrderService {
                 .put("text", new JSONObject().put("type", "mrkdwn").put("text", title.toString())));
         String paidText = order.getPaidAt() != null ? order.getPaidAt().format(PAID_DISPLAY) : "-";
         String context = "결제 " + paidText + " · 주문번호 " + order.getOrderId();
+        if (boxLabel != null) {
+            context += " · " + boxLabel;
+        }
         if (nowForElapsed != null && order.getPaidAt() != null) {
             long days = java.time.temporal.ChronoUnit.DAYS.between(
                     order.getPaidAt().toLocalDate(), nowForElapsed.toLocalDate());
@@ -538,7 +576,7 @@ public class CoupangMarketplaceOrderService {
 
     private String itemSummary(CoupangMarketplaceOrder order,
                                Map<Long, List<CoupangMarketplaceOrderItem>> itemsByOrderId) {
-        List<CoupangMarketplaceOrderItem> items = itemsByOrderId.getOrDefault(order.getOrderId(), List.of());
+        List<CoupangMarketplaceOrderItem> items = boxItems(order, itemsByOrderId);
         return items.isEmpty()
                 ? order.getTotalQuantity() + "개"
                 : items.stream().map(i -> (i.getProductName() != null ? i.getProductName() : "(상품명 없음)")

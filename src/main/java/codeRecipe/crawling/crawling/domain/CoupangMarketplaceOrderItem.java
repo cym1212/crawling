@@ -32,6 +32,10 @@ public class CoupangMarketplaceOrderItem {
     @Column(name = "order_id", nullable = false)
     private Long orderId;
 
+    // 배송박스(묶음배송) 구분 — 박스 단위 행과 매칭. 스키마 확장 전 수집분은 null (단일 박스 주문만 해당)
+    @Column(name = "shipment_box_id")
+    private Long shipmentBoxId;
+
     @Column(name = "vendor_item_id")
     private Long vendorItemId;
 

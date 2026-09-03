@@ -15,8 +15,10 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 /**
- * 판매자배송(마켓플레이스) 주문. 다이제스트 알림 + 30-we.com 출고 화면 + 출고 처리 상태 추적용.
- * 주문번호(orderId) 기준 1행. 분리배송(한 주문 다중 배송박스)은 첫 박스만 저장한다 (희귀 케이스, 수집 시 경고 로그).
+ * 판매자배송(마켓플레이스) 주문 — 배송박스(묶음배송) 단위 1행.
+ * 쿠팡은 배송비 그룹이 다른 상품을 함께 주문하면 한 주문(orderId)을 여러 배송박스(shipmentBoxId)로
+ * 나누며, 준비중 처리·송장 등록·배송 추적이 전부 박스 단위다 (Wing 출고 화면도 박스별 행).
+ * 따라서 유니크 키는 (order_id, shipment_box_id)이고 30-we 출고 화면도 박스별로 행을 보여준다.
  * 개인정보 최소화: 쿠팡이 제공하는 마스킹된 이름·안심번호만 저장된다 (실번호는 쿠팡이 주지 않음).
  */
 @Getter
@@ -25,7 +27,8 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Table(name = "coupang_marketplace_order",
-        uniqueConstraints = @UniqueConstraint(name = "uk_marketplace_order_id", columnNames = "order_id"))
+        uniqueConstraints = @UniqueConstraint(name = "uk_marketplace_order_box",
+                columnNames = {"order_id", "shipment_box_id"}))
 public class CoupangMarketplaceOrder {
 
     /**

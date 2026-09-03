@@ -35,8 +35,8 @@ public class CoupangInternalController {
     private final CoupangFulfillmentService fulfillmentService;
     private final CoupangInternalAuth internalAuth;
 
-    /** 출고 처리 요청 본문 */
-    public record ShipRequest(String deliveryCompanyCode, String invoiceNumber) {
+    /** 출고 처리 요청 본문. shipmentBoxId는 박스가 하나뿐인 주문이면 생략 가능, 분할 주문이면 필수 */
+    public record ShipRequest(String deliveryCompanyCode, String invoiceNumber, Long shipmentBoxId) {
     }
 
     @Operation(summary = "실시간 재고 조회",
@@ -64,11 +64,13 @@ public class CoupangInternalController {
     }
 
     @Operation(summary = "판매자배송 출고 처리 (준비중 + 송장 등록)",
-            description = "30-we.com [쿠팡 등록] 버튼용. 해당 주문을 쿠팡에서 상품준비중 처리(미처리 시)한 뒤 "
+            description = "30-we.com [쿠팡 등록] 버튼용. 해당 배송박스를 쿠팡에서 상품준비중 처리(미처리 시)한 뒤 "
                     + "송장번호를 등록한다 (등록되면 쿠팡이 배송지시로 전환, 이후 추적 자동). "
+                    + "배송비 그룹이 달라 주문이 여러 박스로 나뉜 경우 body의 shipmentBoxId로 박스를 지정해야 하며 "
+                    + "(박스 1개면 생략 가능), 박스마다 각각 호출한다. "
                     + "준비중까지만 성공하고 송장 등록이 실패한 경우 재호출하면 송장부터 재시도된다. "
-                    + "오류: 401 unauthorized / 404 order_not_found / 409 invalid_state(이미 등록 등) / "
-                    + "400 bad_request / 502 coupang_api_error.")
+                    + "오류: 401 unauthorized / 404 order_not_found / 409 invalid_state(이미 등록·취소 등) / "
+                    + "400 bad_request(박스 미지정 포함) / 502 coupang_api_error.")
     @PostMapping("/orders/{orderId}/ship")
     public ResponseEntity<Object> ship(
             @Parameter(description = "내부 인증 토큰 (공통 app.internal.token 값(application-internal.yml))")
@@ -80,7 +82,7 @@ public class CoupangInternalController {
         }
         try {
             return ResponseEntity.ok(fulfillmentService.ship(
-                    orderId, request.deliveryCompanyCode(), request.invoiceNumber()));
+                    orderId, request.shipmentBoxId(), request.deliveryCompanyCode(), request.invoiceNumber()));
         } catch (IllegalArgumentException e) {
             HttpStatus status = e.getMessage() != null && e.getMessage().startsWith("주문을 찾을 수 없습니다")
                     ? HttpStatus.NOT_FOUND : HttpStatus.BAD_REQUEST;

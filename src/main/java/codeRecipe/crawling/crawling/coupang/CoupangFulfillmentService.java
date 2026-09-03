@@ -38,27 +38,51 @@ public class CoupangFulfillmentService {
                              String deliveryCompanyCode, String trackingNumber, String message) {
     }
 
-    public ShipResult ship(long orderId, String deliveryCompanyCode, String invoiceNumber) {
+    /**
+     * @param shipmentBoxId 출고할 배송박스. 주문의 박스가 하나뿐이면 생략 가능,
+     *                      여러 개(배송비 그룹 분할)면 필수 — 준비중·송장 등록이 전부 박스 단위라서다.
+     */
+    public ShipResult ship(long orderId, Long shipmentBoxId, String deliveryCompanyCode, String invoiceNumber) {
         if (deliveryCompanyCode == null || deliveryCompanyCode.isBlank()) {
             throw new IllegalArgumentException("deliveryCompanyCode(택배사 코드)가 비어 있습니다");
         }
         if (invoiceNumber == null || invoiceNumber.isBlank()) {
             throw new IllegalArgumentException("invoiceNumber(운송장번호)가 비어 있습니다");
         }
-        CoupangMarketplaceOrder order = orderRepository.findByOrderId(orderId)
-                .orElseThrow(() -> new IllegalArgumentException("주문을 찾을 수 없습니다: " + orderId));
+        List<CoupangMarketplaceOrder> rows = orderRepository.findAllByOrderId(orderId);
+        if (rows.isEmpty()) {
+            throw new IllegalArgumentException("주문을 찾을 수 없습니다: " + orderId);
+        }
+        CoupangMarketplaceOrder order;
+        if (shipmentBoxId != null) {
+            order = rows.stream().filter(r -> shipmentBoxId.equals(r.getShipmentBoxId())).findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "주문에 해당 배송박스가 없습니다: " + orderId + " / " + shipmentBoxId));
+        } else if (rows.size() == 1) {
+            order = rows.get(0);
+        } else {
+            throw new IllegalArgumentException(
+                    "배송박스가 여러 개로 나뉜 주문입니다. shipmentBoxId를 지정해주세요: " + orderId);
+        }
         if (CoupangMarketplaceOrder.STATUS_CANCELED.equals(order.getCoupangStatus())) {
             throw new IllegalStateException("취소/반품된 주문이라 출고할 수 없습니다: " + orderId);
         }
         if (order.getShippedAt() != null) {
-            throw new IllegalStateException("이미 송장이 등록된 주문입니다 (송장번호 " + order.getTrackingNumber() + ")");
+            throw new IllegalStateException("이미 송장이 등록된 배송박스입니다 (송장번호 " + order.getTrackingNumber() + ")");
         }
         if (order.getShipmentBoxId() == null) {
             throw new IllegalStateException("배송박스 ID가 없어 처리할 수 없는 주문입니다: " + orderId);
         }
-        List<CoupangMarketplaceOrderItem> items = orderItemRepository.findByOrderId(orderId);
+        // 이 박스에 속한 상품만 송장 등록 대상 (스키마 확장 전 수집분은 박스 null 폴백)
+        Long boxId = order.getShipmentBoxId();
+        List<CoupangMarketplaceOrderItem> allItems = orderItemRepository.findByOrderId(orderId);
+        List<CoupangMarketplaceOrderItem> items = allItems.stream()
+                .filter(i -> boxId.equals(i.getShipmentBoxId())).toList();
         if (items.isEmpty()) {
-            throw new IllegalStateException("주문 상품 정보가 없습니다: " + orderId);
+            items = allItems.stream().filter(i -> i.getShipmentBoxId() == null).toList();
+        }
+        if (items.isEmpty()) {
+            throw new IllegalStateException("배송박스의 상품 정보가 없습니다: " + orderId);
         }
         for (CoupangMarketplaceOrderItem item : items) {
             if (item.getVendorItemId() == null) {
