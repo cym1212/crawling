@@ -33,6 +33,19 @@ public class CoupangSchedulingService {
         runSafely("판매자배송 주문 다이제스트", marketplaceOrderService::runDigestJob);
     }
 
+    /**
+     * 판매자배송 주문 수집 + 상태 동기화만 — 슬랙 발송 없이 DB를 최신화한다 (기본: 매시 5분부터 10분 간격).
+     * 신규 주문·Wing 직접 처리·취소가 최대 10분 내 30-we 화면에 반영되고, 알림은 다이제스트(08/12시)가 전담.
+     * 실행 시각은 재고 동기화(:10)·다이제스트(정각)와 겹치지 않게 5분 오프셋.
+     */
+    @Scheduled(cron = "${coupang.schedule.order-collect-cron:0 5/10 * * * *}", zone = "Asia/Seoul")
+    public void runOrderCollect() {
+        runSafely("판매자배송 주문 수집", () -> {
+            marketplaceOrderService.syncPendingOrderStatuses();
+            marketplaceOrderService.collectNewOrders();
+        });
+    }
+
     /** 판매(주문) 수집 (기본: 매일 05:30). 지연 반영 보정을 위해 최근 3일 창을 다시 수집 (멱등) */
     @Scheduled(cron = "${coupang.schedule.order-cron:0 30 5 * * *}", zone = "Asia/Seoul")
     public void runOrderSync() {
