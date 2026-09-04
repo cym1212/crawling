@@ -124,18 +124,52 @@ public class CoupangFulfillmentService {
                     .put("vendorId", apiProperties.getVendorId())
                     .put("shipmentBoxIds", boxArray)
                     .toString();
-            JsonNode response = coupangApiClient.patchOrdersheetAcknowledgement(body);
-            assertCoupangSuccess(response, "발주확인 처리");
             LocalDateTime now = LocalDateTime.now(SEOUL).truncatedTo(ChronoUnit.SECONDS);
-            for (CoupangMarketplaceOrder row : toAck) {
-                acked.add(row.toBuilder().acknowledgedAt(now).coupangStatus("INSTRUCT").build());
+            try {
+                JsonNode response = coupangApiClient.patchOrdersheetAcknowledgement(body);
+                assertCoupangSuccess(response, "발주확인 처리");
+                for (CoupangMarketplaceOrder row : toAck) {
+                    acked.add(row.toBuilder().acknowledgedAt(now).coupangStatus("INSTRUCT").build());
+                }
+                orderRepository.saveAll(acked);
+                log.info("판매자배송 발주확인 완료 - {}건 (박스 {})", acked.size(), boxArray);
+            } catch (CoupangApiException e) {
+                // INVALID_STATUS 등으로 거부돼도 실제로는 이미 준비중일 수 있다 (중복 클릭 경합,
+                // Wing 직접 처리 직후 등). 쿠팡 실제 상태를 재확인해서 준비중 이상이면 성공으로 흡수한다.
+                log.warn("발주확인 거부 - 실제 상태 재확인으로 폴백: {}", e.getMessage());
+                List<Long> stillPending = new ArrayList<>();
+                for (CoupangMarketplaceOrder row : toAck) {
+                    String actual = lookupBoxStatus(row.getOrderId(), row.getShipmentBoxId());
+                    if (actual != null && !"ACCEPT".equals(actual)) {
+                        CoupangMarketplaceOrder updated = orderRepository.save(row.toBuilder()
+                                .acknowledgedAt(now).coupangStatus(actual).build());
+                        acked.add(updated);
+                        log.info("판매자배송 박스 {} 이미 {} 상태 - 발주확인 성공으로 처리", row.getShipmentBoxId(), actual);
+                    } else {
+                        stillPending.add(row.getShipmentBoxId());
+                    }
+                }
+                if (!stillPending.isEmpty()) {
+                    throw new CoupangApiException("발주확인 실패 (박스 " + stillPending + "): " + e.getMessage(),
+                            e.getStatus(), e);
+                }
             }
-            orderRepository.saveAll(acked);
-            log.info("판매자배송 발주확인 완료 - {}건 (박스 {})", acked.size(), boxArray);
         }
         List<Long> receiverUpdated = refreshReceivers(acked);
         return new AcknowledgeResult(distinct.size(), acked.size(), alreadyAcked.size(),
                 notFound, skippedCancelled, skippedShipped, receiverUpdated);
+    }
+
+    /** 박스의 현재 쿠팡 상태 단건 조회 (조회 실패·취소 시 null — 취소는 단건 조회가 400을 반환) */
+    private String lookupBoxStatus(Long orderId, Long shipmentBoxId) {
+        try {
+            JsonNode data = coupangApiClient.getOrderSheetByOrderId(orderId).path("data");
+            JsonNode sheet = CoupangMarketplaceOrderService.pickShipmentBox(data, shipmentBoxId);
+            return sheet == null ? null : CoupangJsonUtils.textOrNull(sheet, "status");
+        } catch (Exception e) {
+            log.warn("박스 {} 상태 재확인 실패", shipmentBoxId, e);
+            return null;
+        }
     }
 
     /** 발주확인 직후 수취인 정보 재조회·갱신. 실패해도 발주확인 자체는 유효하므로 로그만 남긴다. */
