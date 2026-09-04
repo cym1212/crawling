@@ -1,4 +1,4 @@
-import { openNewInbound, removeCoachMarks, clickSafe, log, waitForEnabled, ensureProductChecked } from './browser.mjs';
+import { openNewInbound, clickSafe, log, waitForEnabled, checkAnyValidProductAndNext } from './browser.mjs';
 
 /**
  * SYNC_ADDRESSES 작업: 마법사 3단계 회송지 드로어에서 등록 주소 목록을 읽어 서버에 동기화.
@@ -7,15 +7,8 @@ import { openNewInbound, removeCoachMarks, clickSafe, log, waitForEnabled, ensur
 export async function runSyncAddressesJob(page, api) {
   await openNewInbound(page);
 
-  // 최소 경로로 3단계까지: 첫 상품 체크 → 수량 1 → 박스 1개 → 다음
-  const checkbox = page.locator('input[type=checkbox][id^=checkbox-]:not(#checkbox-all)').first();
-  await ensureProductChecked(page, checkbox, '상품 체크(주소 동기화용)');
-  const next1 = page.locator('button:visible', { hasText: '다음' }).last();
-  if (!(await waitForEnabled(page, next1))) {
-    throw new Error('1단계 다음 버튼이 활성화되지 않았습니다');
-  }
-  await next1.click();
-  await page.waitForTimeout(6_000);
+  // 최소 경로로 3단계까지: 유효 상품 하나 체크 → 다음 → 수량 1 → 박스 1개 → 다음
+  await checkAnyValidProductAndNext(page);
 
   const domestic = page.locator('#shipping-classification-domestic');
   await clickSafe(domestic, '국내배송 라디오');

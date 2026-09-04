@@ -99,3 +99,48 @@ export async function ensureProductChecked(page, checkbox, description) {
     throw new Error(description + ' 실패 — 체크박스가 체크되지 않습니다');
   }
 }
+
+/**
+ * 주소 동기화용: 아무 "유효한" 상품 하나를 골라 체크하고 1단계 다음까지 통과한다.
+ * 실계정 첫 상품이 판매중지/유효하지않음이면 체크해도 "0개 선택"이라 다음이 잠기므로,
+ * 후보 체크박스를 순서대로 눌러보며 다음 버튼이 활성화되는 상품을 찾는다.
+ * (제출용이 아니므로 어떤 상품이든 무방 — 3단계 회송지 드로어에 도달하는 것이 목적)
+ */
+export async function checkAnyValidProductAndNext(page) {
+  await removeCoachMarks(page);
+
+  // 페이지당 노출 개수를 최대로 (첫 페이지가 전부 판매중지여도 유효 상품을 만나도록)
+  const pageSizeSelect = page.locator('select').filter({ hasText: /개씩 보기/ }).first();
+  if ((await pageSizeSelect.count()) > 0) {
+    await pageSizeSelect.selectOption({ label: '200개씩 보기' }).catch(async () => {
+      await pageSizeSelect.selectOption({ label: '100개씩 보기' }).catch(() => {});
+    });
+    await page.waitForTimeout(3_000);
+    await removeCoachMarks(page);
+  }
+
+  const checkboxes = page.locator('input[type=checkbox][id^=checkbox-]:not(#checkbox-all)');
+  const total = await checkboxes.count();
+  if (total === 0) {
+    throw new Error('상품 목록이 비어 있습니다');
+  }
+  const next1 = page.locator('button:visible', { hasText: '다음' }).last();
+
+  for (let i = 0; i < total; i++) {
+    const cb = checkboxes.nth(i);
+    await clickSafe(cb, `상품 체크 후보 ${i + 1}`);
+    await page.waitForTimeout(800);
+
+    // 다음 버튼이 3초 내 활성화되면 유효한 상품 — 통과
+    if (await waitForEnabled(page, next1, 3)) {
+      await next1.click();
+      await page.waitForTimeout(6_000);
+      log('유효 상품 선택 통과 (후보', i + 1, '/', total, ')');
+      return;
+    }
+    // 무효 → 방금 누른 것만 JS로 즉시 해제하고 다음 후보 (클릭 재시도 대기 없이 빠르게)
+    await cb.evaluate((el) => { if (el.checked) el.click(); }).catch(() => {});
+    await page.waitForTimeout(250);
+  }
+  throw new Error('선택 가능한 유효 상품을 찾지 못했습니다 (모두 판매중지/유효하지않음)');
+}
