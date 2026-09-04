@@ -122,6 +122,16 @@ public class CoupangApiClient {
         return requestWithRetry(HttpMethod.POST, path, "", bodyJson);
     }
 
+    /**
+     * 판매자배송 송장 업데이트 — 이미 등록된 송장번호 수정. body 구조는 송장 등록과 동일.
+     * 배송지시/배송중/배송완료/업체직송 상태에서만 가능 (공식 문서).
+     */
+    public JsonNode postOrderInvoicesUpdate(String bodyJson) {
+        String path = "/v2/providers/openapi/apis/api/v4/vendors/" + properties.getVendorId()
+                + "/orders/updateInvoices";
+        return requestWithRetry(HttpMethod.POST, path, "", bodyJson);
+    }
+
     /** 스로틀 적용 + 429 시 60초 대기 후 1회 재시도 */
     public JsonNode getWithRetry(String path, String query) {
         return requestWithRetry(HttpMethod.GET, path, query, null);

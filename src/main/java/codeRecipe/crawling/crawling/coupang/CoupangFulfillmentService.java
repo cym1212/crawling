@@ -41,6 +41,78 @@ public class CoupangFulfillmentService {
     public record BulkShipItem(Long orderId, Long shipmentBoxId, String deliveryCompanyCode, String invoiceNumber) {
     }
 
+    /**
+     * 등록된 송장번호 수정 (라벨 분실·오등록 등). 쿠팡 송장업데이트 API 사용 —
+     * 배송지시 이후 상태에서만 가능하며, 출고 전 주문은 재발급 + [쿠팡 등록]을 쓴다.
+     */
+    public ShipResult updateInvoice(long orderId, Long shipmentBoxId, String deliveryCompanyCode, String invoiceNumber) {
+        if (deliveryCompanyCode == null || deliveryCompanyCode.isBlank()) {
+            throw new IllegalArgumentException("deliveryCompanyCode(택배사 코드)가 비어 있습니다");
+        }
+        if (invoiceNumber == null || invoiceNumber.isBlank()) {
+            throw new IllegalArgumentException("invoiceNumber(운송장번호)가 비어 있습니다");
+        }
+        List<CoupangMarketplaceOrder> rows = orderRepository.findAllByOrderId(orderId);
+        if (rows.isEmpty()) {
+            throw new IllegalArgumentException("주문을 찾을 수 없습니다: " + orderId);
+        }
+        CoupangMarketplaceOrder order;
+        if (shipmentBoxId != null) {
+            order = rows.stream().filter(r -> shipmentBoxId.equals(r.getShipmentBoxId())).findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "주문에 해당 배송박스가 없습니다: " + orderId + " / " + shipmentBoxId));
+        } else if (rows.size() == 1) {
+            order = rows.get(0);
+        } else {
+            throw new IllegalArgumentException(
+                    "배송박스가 여러 개로 나뉜 주문입니다. shipmentBoxId를 지정해주세요: " + orderId);
+        }
+        if (CoupangMarketplaceOrder.STATUS_CANCELED.equals(order.getCoupangStatus())) {
+            throw new IllegalStateException("취소/반품된 주문이라 송장을 수정할 수 없습니다: " + orderId);
+        }
+        if (order.getShippedAt() == null) {
+            throw new IllegalStateException("아직 송장이 등록되지 않은 배송박스입니다 - [쿠팡 등록]을 사용하세요");
+        }
+        Long boxId = order.getShipmentBoxId();
+        List<CoupangMarketplaceOrderItem> allItems = orderItemRepository.findByOrderId(orderId);
+        List<CoupangMarketplaceOrderItem> items = allItems.stream()
+                .filter(i -> boxId.equals(i.getShipmentBoxId())).toList();
+        if (items.isEmpty()) {
+            items = allItems.stream().filter(i -> i.getShipmentBoxId() == null).toList();
+        }
+        if (items.isEmpty()) {
+            throw new IllegalStateException("배송박스의 상품 정보가 없습니다: " + orderId);
+        }
+
+        JSONArray dtos = new JSONArray();
+        for (CoupangMarketplaceOrderItem item : items) {
+            dtos.put(new JSONObject()
+                    .put("shipmentBoxId", boxId)
+                    .put("orderId", orderId)
+                    .put("vendorItemId", item.getVendorItemId())
+                    .put("deliveryCompanyCode", deliveryCompanyCode)
+                    .put("invoiceNumber", invoiceNumber)
+                    .put("splitShipping", false)
+                    .put("preSplitShipped", false)
+                    .put("estimatedShippingDate", ""));
+        }
+        String body = new JSONObject()
+                .put("vendorId", apiProperties.getVendorId())
+                .put("orderSheetInvoiceApplyDtos", dtos)
+                .toString();
+        JsonNode response = coupangApiClient.postOrderInvoicesUpdate(body);
+        assertCoupangSuccess(response, "송장 업데이트");
+
+        orderRepository.save(order.toBuilder()
+                .deliveryCompanyCode(deliveryCompanyCode)
+                .trackingNumber(invoiceNumber)
+                .build());
+        log.info("판매자배송 송장 업데이트 완료 orderId={} boxId={} courier={} invoice={}",
+                orderId, boxId, deliveryCompanyCode, invoiceNumber);
+        return new ShipResult(orderId, false, true, deliveryCompanyCode, invoiceNumber,
+                "송장 업데이트 완료 (기존 등록 송장을 새 번호로 교체)");
+    }
+
     public record BulkShipEntryResult(Long orderId, Long shipmentBoxId, boolean success, String message) {
     }
 

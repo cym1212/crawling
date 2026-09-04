@@ -43,6 +43,39 @@ public class CoupangInternalController {
     public record AcknowledgeRequest(java.util.List<Long> shipmentBoxIds) {
     }
 
+    @Operation(summary = "판매자배송 송장 업데이트 (등록된 송장번호 수정)",
+            description = "30-we.com [송장 수정] 버튼용. 이미 쿠팡에 등록된 배송박스의 송장번호를 새 번호로 교체한다 "
+                    + "(라벨 분실·오등록 등). 배송지시 이후 상태에서만 가능 — 등록 전 주문은 [쿠팡 등록]을 사용. "
+                    + "오류: 401 unauthorized / 404 order_not_found / 409 invalid_state(미등록·취소) / "
+                    + "400 bad_request / 502 coupang_api_error.")
+    @PostMapping("/orders/{orderId}/invoice-update")
+    public ResponseEntity<Object> invoiceUpdate(
+            @Parameter(description = "내부 인증 토큰 (공통 app.internal.token 값(application-internal.yml))")
+            @RequestHeader(value = "X-Internal-Token", required = false) String token,
+            @Parameter(description = "쿠팡 주문번호") @PathVariable long orderId,
+            @RequestBody ShipRequest request) {
+        if (!internalAuth.isAuthorized(token)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "unauthorized"));
+        }
+        try {
+            return ResponseEntity.ok(fulfillmentService.updateInvoice(
+                    orderId, request.shipmentBoxId(), request.deliveryCompanyCode(), request.invoiceNumber()));
+        } catch (IllegalArgumentException e) {
+            HttpStatus status = e.getMessage() != null && e.getMessage().startsWith("주문을 찾을 수 없습니다")
+                    ? HttpStatus.NOT_FOUND : HttpStatus.BAD_REQUEST;
+            String error = status == HttpStatus.NOT_FOUND ? "order_not_found" : "bad_request";
+            return ResponseEntity.status(status).body(Map.of("error", error, "message", e.getMessage()));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                    "error", "invalid_state", "message", e.getMessage() == null ? "" : e.getMessage()));
+        } catch (CoupangApiException e) {
+            log.error("판매자배송 송장 업데이트 실패 orderId={}", orderId, e);
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of(
+                    "error", "coupang_api_error",
+                    "message", e.getMessage() == null ? "" : e.getMessage()));
+        }
+    }
+
     /** 일괄 출고 요청 본문 */
     public record BulkShipRequest(java.util.List<CoupangFulfillmentService.BulkShipItem> items) {
     }
