@@ -44,8 +44,7 @@ public class CoupangMarketplaceOrderService {
     private static final DateTimeFormatter DIGEST_HEADER_TIME = DateTimeFormatter.ofPattern("M월 d일 (E) HH:mm", Locale.KOREAN);
     private static final DateTimeFormatter PAID_DISPLAY = DateTimeFormatter.ofPattern("MM-dd HH:mm");
     private static final int MAX_PAGES = 50;
-    // Block Kit 50블록 제한 대비 (신규+미처리 합산 표시 상한: 12건×3블록 + 헤더·취소·Wing·푸터 여유분)
-    private static final int MAX_CARD_ORDERS = 12;
+    // 슬랙 50블록 한도는 발송기(sendOrderCardPaged)가 여러 메시지로 나눠 해결 — 표시 건수 제한 없음
     private static final int MAX_CARD_CANCELLED = 5;
 
     private static final String STATUS_ACCEPT = "ACCEPT";
@@ -374,39 +373,30 @@ public class CoupangMarketplaceOrderService {
             return new DigestResult(collectedCount, 0, 0, 0, wingProcessedCount, 0, false, "알릴 내용 없음");
         }
 
-        // 신규+미처리 합산 표시 상한 (신규 우선, 초과분은 다음 발송에 포함)
-        List<CoupangMarketplaceOrder> shownNew = unnotified.size() > MAX_CARD_ORDERS
-                ? unnotified.subList(0, MAX_CARD_ORDERS) : unnotified;
-        int reminderBudget = Math.max(0, MAX_CARD_ORDERS - shownNew.size());
-        List<CoupangMarketplaceOrder> shownReminders = reminders.size() > reminderBudget
-                ? reminders.subList(0, reminderBudget) : reminders;
-        int remaining = (unnotified.size() - shownNew.size()) + (reminders.size() - shownReminders.size());
-
         Set<Long> orderIds = new HashSet<>();
-        shownNew.forEach(o -> orderIds.add(o.getOrderId()));
-        shownReminders.forEach(o -> orderIds.add(o.getOrderId()));
+        unnotified.forEach(o -> orderIds.add(o.getOrderId()));
+        reminders.forEach(o -> orderIds.add(o.getOrderId()));
         cancelled.forEach(o -> orderIds.add(o.getOrderId()));
         Map<Long, List<CoupangMarketplaceOrderItem>> itemsByOrderId =
                 orderItemRepository.findByOrderIdIn(new ArrayList<>(orderIds))
                         .stream().collect(Collectors.groupingBy(CoupangMarketplaceOrderItem::getOrderId));
 
         LocalDateTime now = LocalDateTime.now(SEOUL);
-        String fallback = buildFallbackText(shownNew, shownReminders, cancelled, itemsByOrderId, remaining);
+        String fallback = buildFallbackText(unnotified, reminders, cancelled, itemsByOrderId);
         if (dryRun) {
             return new DigestResult(collectedCount, unnotified.size(), 0, reminders.size(),
                     wingProcessedCount, cancelled.size(), false, fallback);
         }
 
-        JSONArray blocks = buildBlocks(shownNew, shownReminders, cancelled, wingProcessedCount,
-                itemsByOrderId, remaining, now);
-        boolean sent = slackNotifier.sendOrderCard(fallback, blocks);
+        boolean sent = slackNotifier.sendOrderCardPaged(fallback,
+                buildBlockGroups(unnotified, reminders, cancelled, wingProcessedCount, itemsByOrderId, now));
 
         // 발송 성공 시에만 알림 완료 표시 (실패하면 다음 다이제스트에 신규로 재포함)
         int notified = 0;
         if (sent) {
             LocalDateTime notifiedAt = now.truncatedTo(ChronoUnit.SECONDS);
             List<CoupangMarketplaceOrder> toMark = new ArrayList<>();
-            for (CoupangMarketplaceOrder order : shownNew) {
+            for (CoupangMarketplaceOrder order : unnotified) {
                 toMark.add(order.toBuilder().notifiedAt(notifiedAt).build());
             }
             orderRepository.saveAll(toMark);
@@ -416,13 +406,17 @@ public class CoupangMarketplaceOrderService {
                 wingProcessedCount, cancelled.size(), sent, fallback);
     }
 
-    private JSONArray buildBlocks(List<CoupangMarketplaceOrder> newOrders,
-                                  List<CoupangMarketplaceOrder> reminders,
-                                  List<CoupangMarketplaceOrder> cancelled,
-                                  int wingProcessedCount,
-                                  Map<Long, List<CoupangMarketplaceOrderItem>> itemsByOrderId,
-                                  int remaining, LocalDateTime now) {
-        JSONArray blocks = new JSONArray();
+    /**
+     * 블록 그룹 목록으로 조립 — 슬랙 50블록 한도는 발송기(sendOrderCardPaged)가 여러 메시지로 나눠
+     * 해결하므로 표시 건수 제한이 없다. 주문 1건(3블록)·취소 섹션 등 그룹은 메시지 경계에서 안 쪼개진다.
+     */
+    private List<JSONArray> buildBlockGroups(List<CoupangMarketplaceOrder> newOrders,
+                                             List<CoupangMarketplaceOrder> reminders,
+                                             List<CoupangMarketplaceOrder> cancelled,
+                                             int wingProcessedCount,
+                                             Map<Long, List<CoupangMarketplaceOrderItem>> itemsByOrderId,
+                                             LocalDateTime now) {
+        List<JSONArray> groups = new ArrayList<>();
         String headerText;
         if (!newOrders.isEmpty()) {
             headerText = "🛒 판매자배송 신규 주문 " + newOrders.size() + "건";
@@ -431,10 +425,11 @@ public class CoupangMarketplaceOrderService {
         } else {
             headerText = "🚫 판매자배송 취소 감지 " + cancelled.size() + "건";
         }
-        blocks.put(new JSONObject().put("type", "header").put("text", new JSONObject()
-                .put("type", "plain_text").put("text", headerText).put("emoji", true)));
-        blocks.put(contextBlock(now.format(DIGEST_HEADER_TIME) + " 발송"));
-        blocks.put(divider());
+        groups.add(new JSONArray()
+                .put(new JSONObject().put("type", "header").put("text", new JSONObject()
+                        .put("type", "plain_text").put("text", headerText).put("emoji", true)))
+                .put(contextBlock(now.format(DIGEST_HEADER_TIME) + " 발송"))
+                .put(divider()));
 
         // 같은 주문이 배송박스로 나뉘어 여러 행일 때 "묶음 i/n" 표기
         Map<Long, Integer> boxTotal = new java.util.HashMap<>();
@@ -447,47 +442,49 @@ public class CoupangMarketplaceOrderService {
         Map<Long, Integer> boxSeen = new java.util.HashMap<>();
 
         for (CoupangMarketplaceOrder order : newOrders) {
-            appendOrderBlocks(blocks, order, itemsByOrderId, null, boxLabel(order, boxTotal, boxSeen));
+            groups.add(orderGroup(order, itemsByOrderId, null, boxLabel(order, boxTotal, boxSeen)));
         }
 
         if (!reminders.isEmpty()) {
             if (!newOrders.isEmpty()) { // 신규 0건이면 헤더가 이미 미처리라 소제목 생략
-                blocks.put(new JSONObject().put("type", "section").put("text", new JSONObject()
-                        .put("type", "mrkdwn")
-                        .put("text", "*⏰ 미처리 주문 " + reminders.size() + "건* — 이전 알림 후 아직 미출고입니다")));
-                blocks.put(divider());
+                groups.add(new JSONArray()
+                        .put(new JSONObject().put("type", "section").put("text", new JSONObject()
+                                .put("type", "mrkdwn")
+                                .put("text", "*⏰ 미처리 주문 " + reminders.size() + "건* — 이전 알림 후 아직 미출고입니다")))
+                        .put(divider()));
             }
             for (CoupangMarketplaceOrder order : reminders) {
-                appendOrderBlocks(blocks, order, itemsByOrderId, now, boxLabel(order, boxTotal, boxSeen));
+                groups.add(orderGroup(order, itemsByOrderId, now, boxLabel(order, boxTotal, boxSeen)));
             }
         }
 
         if (!cancelled.isEmpty()) {
-            blocks.put(new JSONObject().put("type", "section").put("text", new JSONObject()
-                    .put("type", "mrkdwn")
-                    .put("text", "*🚫 취소/반품 감지 " + cancelled.size() + "건* — 포장·발송하지 마세요")));
+            JSONArray cancelGroup = new JSONArray()
+                    .put(new JSONObject().put("type", "section").put("text", new JSONObject()
+                            .put("type", "mrkdwn")
+                            .put("text", "*🚫 취소/반품 감지 " + cancelled.size() + "건* — 포장·발송하지 마세요")));
             List<CoupangMarketplaceOrder> shownCancelled = cancelled.size() > MAX_CARD_CANCELLED
                     ? cancelled.subList(0, MAX_CARD_CANCELLED) : cancelled;
             for (CoupangMarketplaceOrder order : shownCancelled) {
-                blocks.put(contextBlock(itemSummary(order, itemsByOrderId) + " · 주문번호 " + order.getOrderId()));
+                cancelGroup.put(contextBlock(itemSummary(order, itemsByOrderId) + " · 주문번호 " + order.getOrderId()));
             }
             if (cancelled.size() > shownCancelled.size()) {
-                blocks.put(contextBlock("외 " + (cancelled.size() - shownCancelled.size()) + "건"));
+                cancelGroup.put(contextBlock("외 " + (cancelled.size() - shownCancelled.size()) + "건"));
             }
-            blocks.put(divider());
+            cancelGroup.put(divider());
+            groups.add(cancelGroup);
         }
 
-        if (remaining > 0) {
-            blocks.put(contextBlock("외 " + remaining + "건 — 다음 발송에 포함됩니다"));
-        }
+        JSONArray tail = new JSONArray();
         if (wingProcessedCount > 0) {
-            blocks.put(contextBlock("✅ Wing에서 처리된 주문 " + wingProcessedCount + "건은 목록에서 제외했습니다"));
+            tail.put(contextBlock("✅ Wing에서 처리된 주문 " + wingProcessedCount + "건은 목록에서 제외했습니다"));
         }
         String footer = orderScreenUrl != null && !orderScreenUrl.isBlank()
                 ? "출고 처리 → <" + orderScreenUrl + "|쿠팡 주문 화면>"
                 : "출고 처리 → 쿠팡 주문 화면 (jack.coderecipe.io)";
-        blocks.put(contextBlock(footer));
-        return blocks;
+        tail.put(contextBlock(footer));
+        groups.add(tail);
+        return groups;
     }
 
     /** 같은 주문의 박스가 여러 개 표시될 때만 "묶음 i/n" 라벨 (단일 박스는 null) */
@@ -511,10 +508,11 @@ public class CoupangMarketplaceOrderService {
         return all.stream().filter(i -> i.getShipmentBoxId() == null).toList();
     }
 
-    /** 박스 1건 = 상품 section + 결제·주문번호 context + divider. nowForElapsed가 있으면 경과일 표기(미처리용) */
-    private void appendOrderBlocks(JSONArray blocks, CoupangMarketplaceOrder order,
-                                   Map<Long, List<CoupangMarketplaceOrderItem>> itemsByOrderId,
-                                   LocalDateTime nowForElapsed, String boxLabel) {
+    /** 박스 1건 그룹 = 상품 section + 결제·주문번호 context + divider. nowForElapsed가 있으면 경과일 표기(미처리용) */
+    private JSONArray orderGroup(CoupangMarketplaceOrder order,
+                                 Map<Long, List<CoupangMarketplaceOrderItem>> itemsByOrderId,
+                                 LocalDateTime nowForElapsed, String boxLabel) {
+        JSONArray blocks = new JSONArray();
         List<CoupangMarketplaceOrderItem> items = boxItems(order, itemsByOrderId);
         StringBuilder title = new StringBuilder();
         boolean first = true;
@@ -543,12 +541,13 @@ public class CoupangMarketplaceOrderService {
         }
         blocks.put(contextBlock(context));
         blocks.put(divider());
+        return blocks;
     }
 
     private String buildFallbackText(List<CoupangMarketplaceOrder> newOrders,
                                      List<CoupangMarketplaceOrder> reminders,
                                      List<CoupangMarketplaceOrder> cancelled,
-                                     Map<Long, List<CoupangMarketplaceOrderItem>> itemsByOrderId, int remaining) {
+                                     Map<Long, List<CoupangMarketplaceOrderItem>> itemsByOrderId) {
         StringBuilder text = new StringBuilder("🛒 판매자배송 신규 " + newOrders.size() + "건");
         if (!reminders.isEmpty()) {
             text.append(" · ⏰ 미처리 ").append(reminders.size()).append("건");
@@ -567,9 +566,6 @@ public class CoupangMarketplaceOrderService {
         for (CoupangMarketplaceOrder order : cancelled) {
             text.append("\n🚫 ").append(itemSummary(order, itemsByOrderId))
                     .append(" (주문번호 ").append(order.getOrderId()).append(")");
-        }
-        if (remaining > 0) {
-            text.append("\n외 ").append(remaining).append("건");
         }
         return text.toString();
     }

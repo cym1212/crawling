@@ -181,7 +181,7 @@ public class CoupangRestockService {
         computed.sort(Comparator.comparing(item -> item.saved().getDaysUntilStockout()));
 
         String fallbackText = buildFallbackText(computed);
-        boolean sent = coupangSlackNotifier.sendCard(fallbackText, buildBlocks(computed, today));
+        boolean sent = coupangSlackNotifier.sendCardPaged(fallbackText, buildBlockGroups(computed, today));
         if (mismatchWarning != null) {
             coupangSlackNotifier.send(mismatchWarning); // 경고는 별도 텍스트 메시지로
         }
@@ -211,22 +211,22 @@ public class CoupangRestockService {
 
     // ── 슬랙 Block Kit 카드 (확정 템플릿: 헤더 + 상품별 2×2 필드 + 옵션ID + 구분선 + 기준 푸터) ──
 
-    private static final int MAX_CARD_ITEMS = 20; // Block Kit 50블록 제한 대비 상한
     private static final DateTimeFormatter CARD_DATE = DateTimeFormatter.ofPattern("M월 d일 (E)", Locale.KOREAN);
     private static final BigDecimal URGENT_DAYS = BigDecimal.valueOf(3); // 🔴 기준
 
-    private JSONArray buildBlocks(List<Computed> computed, LocalDate today) {
-        JSONArray blocks = new JSONArray();
-        blocks.put(new JSONObject().put("type", "header").put("text",
-                new JSONObject().put("type", "plain_text").put("text", "📦 쿠팡 입고 제안").put("emoji", true)));
-        blocks.put(contextBlock(today.format(CARD_DATE) + " · 총 " + computed.size() + "건"));
-        blocks.put(divider());
+    /**
+     * 블록 그룹 목록으로 조립 — 슬랙 50블록 한도는 발송기(sendCardPaged)가 여러 메시지로 나눠 해결하므로
+     * 표시 건수 제한이 없다. 그룹(상품 1건 = 내용+옵션ID+구분선 3블록)은 메시지 경계에서 쪼개지지 않는다.
+     */
+    private List<JSONArray> buildBlockGroups(List<Computed> computed, LocalDate today) {
+        List<JSONArray> groups = new ArrayList<>();
+        groups.add(new JSONArray()
+                .put(new JSONObject().put("type", "header").put("text",
+                        new JSONObject().put("type", "plain_text").put("text", "📦 쿠팡 입고 제안").put("emoji", true)))
+                .put(contextBlock(today.format(CARD_DATE) + " · 총 " + computed.size() + "건"))
+                .put(divider()));
 
-        int shown = 0;
         for (Computed item : computed) {
-            if (shown >= MAX_CARD_ITEMS) {
-                break;
-            }
             CoupangRestockSuggestion s = item.saved();
             RestockCalculator.Result basis = item.basis();
             String urgency = s.getDaysUntilStockout().compareTo(URGENT_DAYS) <= 0 ? "🔴" : "🟡";
@@ -238,17 +238,14 @@ public class CoupangRestockService {
                     .put(mrkdwn("소진까지: `" + formatDays(s.getDaysUntilStockout()) + "일`"))
                     .put(mrkdwn("현재 재고: " + s.getCurrentQuantity() + "개"))
                     .put(mrkdwn("최근 30일 판매: " + basis.sales30Sum() + "개"));
-            blocks.put(new JSONObject().put("type", "section").put("text", mrkdwn(title)).put("fields", fields));
-            blocks.put(contextBlock("옵션ID " + s.getVendorItemId()));
-            blocks.put(divider());
-            shown++;
+            groups.add(new JSONArray()
+                    .put(new JSONObject().put("type", "section").put("text", mrkdwn(title)).put("fields", fields))
+                    .put(contextBlock("옵션ID " + s.getVendorItemId()))
+                    .put(divider()));
         }
-        if (computed.size() > MAX_CARD_ITEMS) {
-            blocks.put(contextBlock("외 " + (computed.size() - MAX_CARD_ITEMS) + "건 — 드라이런 API로 전체 확인 가능"));
-        }
-        blocks.put(contextBlock("기준: 소진 " + restockProperties.getThresholdDays() + "일 이내 알림 · "
-                + restockProperties.getTargetDays() + "일치 보충"));
-        return blocks;
+        groups.add(new JSONArray().put(contextBlock("기준: 소진 " + restockProperties.getThresholdDays()
+                + "일 이내 알림 · " + restockProperties.getTargetDays() + "일치 보충")));
+        return groups;
     }
 
     /** 푸시 알림 미리보기/블록 미지원 클라이언트용 요약 텍스트 */

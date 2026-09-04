@@ -47,6 +47,64 @@ public class CoupangSlackNotifier {
         return sendCardTo(orderWebhookUrl, fallbackText, blocks, "판매자배송 주문 알림");
     }
 
+    // 슬랙은 메시지당 블록 50개까지만 허용. 연속 페이지 머리의 "…이어서" 1블록을 감안한 안전선.
+    private static final int MAX_BLOCKS_PER_MESSAGE = 45;
+
+    /** 부족 재고 카드 — 블록 그룹을 여러 메시지로 나눠 순서대로 발송 (건수 제한 없음) */
+    public boolean sendCardPaged(String fallbackText, java.util.List<JSONArray> groups) {
+        return sendCardPagedTo(webhookUrl, fallbackText, groups, "쿠팡 알림");
+    }
+
+    /** 판매자배송 다이제스트 카드 — 블록 그룹을 여러 메시지로 나눠 순서대로 발송 */
+    public boolean sendOrderCardPaged(String fallbackText, java.util.List<JSONArray> groups) {
+        return sendCardPagedTo(orderWebhookUrl, fallbackText, groups, "판매자배송 주문 알림");
+    }
+
+    /**
+     * 블록 그룹(항상 붙어 다녀야 하는 블록 묶음 — 예: 상품 1건의 내용+옵션ID+구분선)들을
+     * 45블록 이하 메시지 여러 개로 나눠 순서대로 발송한다. 그룹은 중간에서 쪼개지 않는다.
+     * 2번째 메시지부터는 맨 위에 "…이어서 (i/n)"이 붙어 채널에서 이어진 카드로 보인다.
+     */
+    private boolean sendCardPagedTo(String url, String fallbackText, java.util.List<JSONArray> groups, String label) {
+        if (url == null || url.isBlank()) {
+            log.info("{} 웹훅 미설정 - 카드 발송 생략. 요약:\n{}", label, fallbackText);
+            return false;
+        }
+        java.util.List<JSONArray> pages = new java.util.ArrayList<>();
+        JSONArray current = new JSONArray();
+        for (JSONArray group : groups) {
+            if (current.length() > 0 && current.length() + group.length() > MAX_BLOCKS_PER_MESSAGE) {
+                pages.add(current);
+                current = new JSONArray();
+            }
+            for (int i = 0; i < group.length(); i++) {
+                current.put(group.get(i));
+            }
+        }
+        if (current.length() > 0) {
+            pages.add(current);
+        }
+
+        String firstLine = fallbackText.contains("\n")
+                ? fallbackText.substring(0, fallbackText.indexOf('\n')) : fallbackText;
+        for (int p = 0; p < pages.size(); p++) {
+            JSONArray blocks = pages.get(p);
+            String fallback = fallbackText;
+            if (p > 0) {
+                fallback = firstLine + " (이어서 " + (p + 1) + "/" + pages.size() + ")";
+                JSONArray withHead = new JSONArray().put(new JSONObject().put("type", "context").put("elements",
+                        new JSONArray().put(new JSONObject().put("type", "mrkdwn")
+                                .put("text", "…이어서 (" + (p + 1) + "/" + pages.size() + ")"))));
+                for (int i = 0; i < blocks.length(); i++) {
+                    withHead.put(blocks.get(i));
+                }
+                blocks = withHead;
+            }
+            post(url, new JSONObject().put("text", fallback).put("blocks", blocks).toString());
+        }
+        return true;
+    }
+
     private boolean sendCardTo(String url, String fallbackText, JSONArray blocks, String label) {
         if (url == null || url.isBlank()) {
             log.info("{} 웹훅 미설정 - 카드 발송 생략. 요약:\n{}", label, fallbackText);
