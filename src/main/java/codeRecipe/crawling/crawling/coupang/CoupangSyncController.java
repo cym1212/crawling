@@ -152,7 +152,9 @@ public class CoupangSyncController {
             @Parameter(description = "[dryRun 전용] 임계일수 오버라이드 (기본: 설정값)")
             @RequestParam(required = false) Integer thresholdDays,
             @Parameter(description = "[dryRun 전용] 목표일수 오버라이드 (기본: 설정값)")
-            @RequestParam(required = false) Integer targetDays) {
+            @RequestParam(required = false) Integer targetDays,
+            @Parameter(description = "true면 오늘 이미 제안된 건도 카드에 포함해 재발송 (재저장 없음 — 아침 발송 실패 시)")
+            @RequestParam(defaultValue = "false") boolean resend) {
         if (!internalAuth.isAuthorized(token)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "unauthorized"));
         }
@@ -168,6 +170,6 @@ public class CoupangSyncController {
             body.put("items", simulated);
             return ResponseEntity.ok(body);
         }
-        return ResponseEntity.ok(restockService.generateAndNotify());
+        return ResponseEntity.ok(restockService.generateAndNotify(resend));
     }
 }

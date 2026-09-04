@@ -118,6 +118,14 @@ public class CoupangRestockService {
     }
 
     public RestockRunResult generateAndNotify() {
+        return generateAndNotify(false);
+    }
+
+    /**
+     * @param resendToday true면 오늘 이미 제안된 건도 카드에 포함해 재발송한다 (다시 저장하지는 않음).
+     *                    아침 발송이 실패했을 때 DELETE 없이 재발송하는 용도 — 수동 트리거 전용.
+     */
+    public RestockRunResult generateAndNotify(boolean resendToday) {
         CalcContext context = loadContext();
         if (context == null) {
             log.warn("쿠팡 재고 데이터가 없어 재입고 제안을 건너뜁니다.");
@@ -142,7 +150,22 @@ public class CoupangRestockService {
                 continue;
             }
             if (suggestionRepository.existsByVendorItemIdAndSuggestionDate(inventory.getVendorItemId(), today)) {
-                continue; // 오늘자 제안이 이미 있음
+                if (resendToday) {
+                    // 재발송: 다시 저장하지 않고 현재 계산값으로 카드에만 포함
+                    RestockCalculator.Result existing = result.get();
+                    computed.add(new Computed(CoupangRestockSuggestion.builder()
+                            .vendorItemId(inventory.getVendorItemId())
+                            .productName(inventory.getProductName())
+                            .currentQuantity(inventory.getOrderableQuantity())
+                            .dailyAvgSales(existing.dailyAvgSales())
+                            .daysUntilStockout(existing.daysUntilStockout())
+                            .expectedStockoutDate(existing.expectedStockoutDate())
+                            .suggestedQuantity(existing.suggestedQuantity())
+                            .status(RestockStatus.SUGGESTED)
+                            .suggestionDate(today)
+                            .build(), existing));
+                }
+                continue; // 오늘자 제안이 이미 있음 (신규 저장 안 함)
             }
             RestockCalculator.Result r = result.get();
             try {
