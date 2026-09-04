@@ -50,6 +50,10 @@ public class CoupangInboundAgentService {
     @Value("${coupang.slack.order-screen-url:}")
     private String screenBaseUrl;
 
+    /** WING 주소 동기화가 이 시간 이상 오래되면 재동기화 작업을 내려보낸다 (계정 전환·주소 변경 반영) */
+    @Value("${coupang.inbound.address-sync-hours:24}")
+    private int addressSyncStaleHours;
+
     public record AgentItem(Long vendorItemId, String productName, Integer quantity) { }
 
     public record AgentInvoice(Integer boxNo, String trackingNumber) { }
@@ -62,8 +66,8 @@ public class CoupangInboundAgentService {
     public List<AgentJob> pendingJobs() {
         List<AgentJob> jobs = new ArrayList<>();
 
-        // WING 주소 미동기화 상태면 최우선으로 동기화 작업 지시 (회송지 설정의 선행 조건)
-        if (wingAddressRepository.count() == 0) {
+        // WING 주소가 없거나 오래됐으면 동기화 작업 지시 — 계정 전환·주소 변경이 늦어도 하루 안에 반영된다
+        if (addressesStale()) {
             jobs.add(new AgentJob("SYNC_ADDRESSES", null, null, null, null, List.of(), List.of()));
         }
 
@@ -259,6 +263,15 @@ public class CoupangInboundAgentService {
             return;
         }
         slackNotifier.send("🤖 [입고 에이전트] " + message);
+    }
+
+    private boolean addressesStale() {
+        if (wingAddressRepository.count() == 0) {
+            return true;
+        }
+        LocalDateTime lastSynced = wingAddressRepository.findMaxSyncedAt();
+        return lastSynced == null
+                || lastSynced.isBefore(LocalDateTime.now(SEOUL).minusHours(addressSyncStaleHours));
     }
 
     private List<AgentItem> toAgentItems(Long planId) {
