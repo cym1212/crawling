@@ -1,9 +1,11 @@
 import path from 'path';
 import { openNewInbound, removeCoachMarks, clickSafe, log, LIST_URL, waitForEnabled, ensureProductChecked } from './browser.mjs';
+import { uploadToRefrigerator } from './api.mjs';
 
 /**
  * SUBMIT 작업: WING 입고생성 완주 (PoC poc-final2.mjs에서 실증된 경로 이식 + 다중 상품/수량 확장).
- * 성공 시 { wingInboundId, fulfillmentCenter, arrivalDate } 반환, 실패 시 명확한 사유와 함께 throw.
+ * 성공 시 { wingInboundId, fulfillmentCenter, arrivalDate, barcodePdfUrl, attachPdfUrl } 반환 —
+ * 문서는 사내 CDN(refrigerator)에 올려 URL로 보고한다 (교보 발주 원본과 동일 방식, 회수 실패 시 null).
  */
 export async function runSubmitJob(page, api, config, job) {
   const { planId, items, boxCount, returnAddress } = job;
@@ -71,15 +73,20 @@ export async function runSubmitJob(page, api, config, job) {
     throw new Error('제출은 완료됐으나 입고 ID를 추출하지 못했습니다 (수동 확인 필요)');
   }
 
-  // ── 문서 회수 (실패해도 제출 결과는 유효 — 알림 후 계속) ──
+  // ── 문서 회수 → CDN 업로드 (실패해도 제출 결과는 유효 — 알림 후 계속) ──
+  let documentUrls = { barcodePdfUrl: null, attachPdfUrl: null };
   try {
-    await downloadDocuments(page, api, config, planId, wingInboundId);
+    const collected = await collectDocuments(page, config, wingInboundId);
+    documentUrls = collected.urls;
+    if (collected.failures.length > 0) {
+      await api.notify(`일부 문서(PDF) 회수 실패 — 입고 ID ${wingInboundId}: ${collected.failures.join(' / ')}\nWING 입고관리의 [바코드/물류문서 인쇄]에서 직접 출력해주세요.`);
+    }
   } catch (e) {
     log('문서 회수 실패:', e.message);
     await api.notify(`문서(PDF) 자동 회수 실패 — 입고 ID ${wingInboundId}: ${e.message}\nWING 입고관리의 [바코드/물류문서 인쇄]에서 직접 출력해주세요.`);
   }
 
-  return { wingInboundId, fulfillmentCenter, arrivalDate };
+  return { wingInboundId, fulfillmentCenter, arrivalDate, ...documentUrls };
 }
 
 /** 옵션 ID 검색 → 결과 상품 체크 */
@@ -255,8 +262,8 @@ async function checkAgreements(page) {
   log('동의 체크:', JSON.stringify(checked));
 }
 
-/** 목록의 [바코드/물류문서 인쇄] 드롭다운에서 PDF 2종 회수 → 서버 업로드 */
-async function downloadDocuments(page, api, config, planId, wingInboundId) {
+/** 목록의 [바코드/물류문서 인쇄] 드롭다운에서 PDF 2종 회수 → 사내 CDN(refrigerator) 업로드 → URL 수집 */
+async function collectDocuments(page, config, wingInboundId) {
   await page.goto(LIST_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await page.waitForTimeout(6_000);
 
@@ -267,14 +274,23 @@ async function downloadDocuments(page, api, config, planId, wingInboundId) {
   }
 
   const menus = [
-    { menuText: '상품 바코드 인쇄', type: 'barcode' },
-    { menuText: '물류 부착문서 인쇄', type: 'attachment' },
+    { menuText: '상품 바코드 인쇄', type: 'barcode', key: 'barcodePdfUrl' },
+    { menuText: '물류 부착문서 인쇄', type: 'attachment', key: 'attachPdfUrl' },
   ];
-  for (const { menuText, type } of menus) {
-    const saved = await captureDocument(page, config, menuText, `plan${planId}-${type}.pdf`);
-    await api.uploadDocument(planId, type, saved);
-    log('문서 업로드 완료:', type);
+  const urls = { barcodePdfUrl: null, attachPdfUrl: null };
+  const failures = [];
+  for (const { menuText, type, key } of menus) {
+    try {
+      const fileName = `rg-inbound-${wingInboundId}-${type}.pdf`;
+      const saved = await captureDocument(page, config, menuText, fileName);
+      urls[key] = await uploadToRefrigerator(config, saved, fileName);
+      log('문서 CDN 업로드 완료:', type, urls[key]);
+    } catch (e) {
+      log('문서 처리 실패:', type, '-', e.message);
+      failures.push(`${type}: ${e.message}`);
+    }
   }
+  return { urls, failures };
 }
 
 /** 드롭다운 항목 클릭 → 다운로드/새 탭 PDF 캡처 → 파일 저장 경로 반환 */

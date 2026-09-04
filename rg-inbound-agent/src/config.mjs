@@ -22,6 +22,13 @@ export function loadConfig() {
   config.profileDir = path.resolve(ROOT, config.profileDir ?? './wing-profile');
   config.downloadDir = path.resolve(ROOT, config.downloadDir ?? './downloads');
   config.loginWaitMinutes = config.loginWaitMinutes ?? 30;
+  // 문서(PDF) 보관용 사내 CDN — 교보 발주 원본과 동일한 refrigerator 서비스
+  config.refrigerator = {
+    endpoint: 'https://refrigerator.logipasta.com/v1/file',
+    bucket: 'withcookie-bucket',
+    path: 'rg-inbound-docs',
+    ...(config.refrigerator ?? {}),
+  };
   fs.mkdirSync(config.downloadDir, { recursive: true });
   return config;
 }

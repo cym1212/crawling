@@ -4,5 +4,10 @@
   "pollIntervalSec": 600,
   "profileDir": "./wing-profile",
   "downloadDir": "./downloads",
-  "loginWaitMinutes": 30
+  "loginWaitMinutes": 30,
+  "refrigerator": {
+    "endpoint": "https://refrigerator.logipasta.com/v1/file",
+    "bucket": "withcookie-bucket",
+    "path": "rg-inbound-docs"
+  }
 }

@@ -11,9 +11,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
@@ -33,7 +31,8 @@ public class CoupangInboundAgentController {
     private final CoupangAgentAuth agentAuth;
 
     public record SubmitResultRequest(boolean success, String wingInboundId, String fulfillmentCenter,
-                                      String arrivalDate, String failReason) { }
+                                      String arrivalDate, String failReason,
+                                      String barcodePdfUrl, String attachPdfUrl) { }
 
     public record InvoiceResultRequest(boolean success, String failReason) { }
 
@@ -77,7 +76,8 @@ public class CoupangInboundAgentController {
         }
         try {
             agentService.submitResult(planId, request.success(), request.wingInboundId(),
-                    request.fulfillmentCenter(), request.arrivalDate(), request.failReason());
+                    request.fulfillmentCenter(), request.arrivalDate(), request.failReason(),
+                    request.barcodePdfUrl(), request.attachPdfUrl());
             return ResponseEntity.ok(Map.of("planId", planId));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
@@ -102,25 +102,27 @@ public class CoupangInboundAgentController {
         }
     }
 
+    public record DocumentUrlRequest(String url) { }
+
+    /** 문서 CDN URL 후속 보고 — 에이전트가 refrigerator 업로드 후 URL만 전달한다 (파일 전송 없음) */
     @PostMapping("/plans/{planId}/documents/{type}")
-    public ResponseEntity<Object> uploadDocument(
+    public ResponseEntity<Object> reportDocument(
             @RequestHeader(value = "X-Agent-Token", required = false) String token,
             @PathVariable long planId,
             @PathVariable String type,
-            @RequestParam("file") MultipartFile file) {
+            @RequestBody DocumentUrlRequest request) {
         if (!agentAuth.isAuthorized(token)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "unauthorized"));
         }
         try {
-            agentService.saveDocument(planId, type, file);
+            agentService.saveDocumentUrl(planId, type, request.url());
             return ResponseEntity.ok(Map.of("planId", planId, "type", type));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
-                    "error", "bad_request", "message", e.getMessage() == null ? "" : e.getMessage()));
-        } catch (Exception e) {
-            log.error("입고 문서 저장 실패 planId={} type={}", planId, type, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
-                    "error", "storage_error", "message", e.getMessage() == null ? "" : e.getMessage()));
+            HttpStatus status = e.getMessage() != null && e.getMessage().startsWith("계획을 찾을 수 없습니다")
+                    ? HttpStatus.NOT_FOUND : HttpStatus.BAD_REQUEST;
+            String error = status == HttpStatus.NOT_FOUND ? "plan_not_found" : "bad_request";
+            return ResponseEntity.status(status).body(Map.of(
+                    "error", error, "message", e.getMessage() == null ? "" : e.getMessage()));
         }
     }
 

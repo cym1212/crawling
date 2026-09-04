@@ -52,17 +52,12 @@ public class CoupangInboundPlan {
     @Column(name = "arrival_date")
     private LocalDate arrivalDate;           // 도착예정일
 
-    @Column(name = "barcode_pdf_ready", nullable = false, columnDefinition = "tinyint(1)")
-    private boolean barcodePdfReady;         // 상품 바코드 PDF 회수됨
+    // 문서는 교보 발주 원본과 동일하게 사내 CDN(refrigerator)에 보관하고 URL만 저장 (에이전트가 업로드 후 보고)
+    @Column(name = "barcode_pdf_url", length = 500)
+    private String barcodePdfUrl;            // 상품 바코드 PDF CDN URL
 
-    @Column(name = "attach_pdf_ready", nullable = false, columnDefinition = "tinyint(1)")
-    private boolean attachPdfReady;          // 물류 부착문서 PDF 회수됨
-
-    @Column(name = "barcode_pdf_path", length = 500)
-    private String barcodePdfPath;           // 서버 보관 경로 (crawling 내부용)
-
-    @Column(name = "attach_pdf_path", length = 500)
-    private String attachPdfPath;
+    @Column(name = "attach_pdf_url", length = 500)
+    private String attachPdfUrl;             // 물류 부착문서 PDF CDN URL
 
     @Column(name = "fail_reason", length = 1000)
     private String failReason;               // FAILED 시 사유 (수동 폴백 안내용)

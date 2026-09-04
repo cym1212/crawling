@@ -19,7 +19,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.io.File;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
@@ -181,20 +180,4 @@ public class CoupangInboundPlanService {
         log.info("회송지 설정 저장: {}", returnAddress);
     }
 
-    /** 회수된 문서 파일 반환. type: barcode | attachment. 미회수 시 null. */
-    @Transactional(readOnly = true)
-    public File getDocumentFile(long planId, String type) {
-        CoupangInboundPlan plan = planRepository.findById(planId)
-                .orElseThrow(() -> new IllegalArgumentException("계획을 찾을 수 없습니다: " + planId));
-        String path = switch (type) {
-            case "barcode" -> plan.getBarcodePdfPath();
-            case "attachment" -> plan.getAttachPdfPath();
-            default -> throw new IllegalArgumentException("지원하지 않는 문서 유형: " + type);
-        };
-        if (path == null || path.isBlank()) {
-            return null;
-        }
-        File file = new File(path);
-        return file.exists() ? file : null;
-    }
 }

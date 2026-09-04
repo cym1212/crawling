@@ -17,9 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -48,9 +46,6 @@ public class CoupangInboundAgentService {
     private final CoupangFulfillmentCenterRepository fulfillmentCenterRepository;
     private final CoupangInventoryRepository inventoryRepository;
     private final CoupangSlackNotifier slackNotifier;
-
-    @Value("${coupang.inbound.document-dir:storage/rg-inbound-docs}")
-    private String documentDir;
 
     @Value("${coupang.slack.order-screen-url:}")
     private String screenBaseUrl;
@@ -116,10 +111,14 @@ public class CoupangInboundAgentService {
                 .build());
     }
 
-    /** WING 제출 결과 반영. 성공 시 제출 시점 재고를 기준선으로 저장한다 (입고 반영 추정용). */
+    /**
+     * WING 제출 결과 반영. 성공 시 제출 시점 재고를 기준선으로 저장한다 (입고 반영 추정용).
+     * 문서(바코드/부착문서)는 에이전트가 사내 CDN(refrigerator)에 올린 뒤 URL로 함께 보고한다 (회수 실패 시 null).
+     */
     @Transactional
     public void submitResult(long planId, boolean success, String wingInboundId,
-                             String fulfillmentCenter, String arrivalDate, String failReason) {
+                             String fulfillmentCenter, String arrivalDate, String failReason,
+                             String barcodePdfUrl, String attachPdfUrl) {
         CoupangInboundPlan plan = requirePlan(planId);
         LocalDateTime now = LocalDateTime.now(SEOUL);
 
@@ -150,6 +149,8 @@ public class CoupangInboundAgentService {
                 .wingInboundId(wingInboundId)
                 .fulfillmentCenter(fulfillmentCenter)
                 .arrivalDate(arrivalDate == null || arrivalDate.isBlank() ? null : LocalDate.parse(arrivalDate))
+                .barcodePdfUrl(blankToNull(barcodePdfUrl))
+                .attachPdfUrl(blankToNull(attachPdfUrl))
                 .failReason(null)
                 .submittedAt(now)
                 .updatedAt(now)
@@ -162,6 +163,12 @@ public class CoupangInboundAgentService {
                 .append(" · 상품 ").append(items.size()).append("건 / 총 ").append(totalQuantity)
                 .append("개 / 박스 ").append(plan.getBoxCount()).append("개")
                 .append("\n다음: 바코드 부착·포장 후 30-we에서 송장 발급").append(detailLink(planId));
+        if (blankToNull(barcodePdfUrl) != null) {
+            message.append("\n📎 상품 바코드 PDF: ").append(barcodePdfUrl);
+        }
+        if (blankToNull(attachPdfUrl) != null) {
+            message.append("\n📎 물류 부착문서 PDF: ").append(attachPdfUrl);
+        }
         if (fulfillmentCenter != null && fulfillmentCenterRepository.findByFcName(fulfillmentCenter).isEmpty()) {
             message.append("\n⚠️ FC 주소 미등록(").append(fulfillmentCenter)
                     .append(") — coupang_fulfillment_center에 등록해야 송장 발급이 가능합니다");
@@ -198,33 +205,29 @@ public class CoupangInboundAgentService {
                 + " · 송장 " + invoices.size() + "건. 발송만 남았습니다" + detailLink(planId));
     }
 
-    /** 회수 문서(PDF) 저장. type: barcode | attachment */
+    /** 회수 문서 CDN URL 보고 (제출 시 함께 못 보낸 경우의 후속/재보고용). type: barcode | attachment */
     @Transactional
-    public void saveDocument(long planId, String type, MultipartFile file) throws Exception {
+    public void saveDocumentUrl(long planId, String type, String url) {
         if (!"barcode".equals(type) && !"attachment".equals(type)) {
             throw new IllegalArgumentException("지원하지 않는 문서 유형: " + type);
         }
-        if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("파일이 비어 있습니다");
+        if (url == null || url.isBlank()) {
+            throw new IllegalArgumentException("문서 URL이 비어 있습니다");
         }
         CoupangInboundPlan plan = requirePlan(planId);
-
-        File dir = new File(documentDir);
-        if (!dir.exists() && !dir.mkdirs()) {
-            throw new IllegalStateException("문서 저장 디렉터리 생성 실패: " + documentDir);
-        }
-        File target = new File(dir, "plan" + planId + "-" + type + ".pdf");
-        file.transferTo(target.getAbsoluteFile());
-
-        LocalDateTime now = LocalDateTime.now(SEOUL);
-        CoupangInboundPlan.CoupangInboundPlanBuilder builder = plan.toBuilder().updatedAt(now);
+        CoupangInboundPlan.CoupangInboundPlanBuilder builder = plan.toBuilder()
+                .updatedAt(LocalDateTime.now(SEOUL));
         if ("barcode".equals(type)) {
-            builder.barcodePdfPath(target.getAbsolutePath()).barcodePdfReady(true);
+            builder.barcodePdfUrl(url);
         } else {
-            builder.attachPdfPath(target.getAbsolutePath()).attachPdfReady(true);
+            builder.attachPdfUrl(url);
         }
         planRepository.save(builder.build());
-        log.info("입고 문서 저장 planId={} type={} path={}", planId, type, target.getAbsolutePath());
+        log.info("입고 문서 URL 저장 planId={} type={} url={}", planId, type, url);
+    }
+
+    private String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 
     /** WING 회송지 주소 목록 동기화 (upsert + 사라진 주소 제거) */
